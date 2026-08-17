@@ -113,43 +113,48 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
       </section>
 
       <section className="board__player-row board__player-row--you">
-        <div className="board__player-label">
-          <span className={`board__dot ${state.you.connected ? 'board__dot--on' : 'board__dot--off'}`} />
-          {state.you.name} (you)
-        </div>
-        <div className="board__piles">
-          <PileStack
-            pile={state.you.stockPile}
-            label="Stock"
-            selected={selected?.kind === 'stock'}
-            interactive={isYourTurn && !!state.you.stockPile.topCard}
-            onClick={handleStockClick}
-          />
-          {state.you.discardPiles.map((pile, i) => (
+        <div className="board__you-piles">
+          <div className="board__player-label">
+            <span className={`board__dot ${state.you.connected ? 'board__dot--on' : 'board__dot--off'}`} />
+            {state.you.name} (you)
+          </div>
+          <div className="board__piles">
             <PileStack
-              key={i}
-              pile={pile}
-              label={`D${i + 1}`}
-              selected={selected?.kind === 'discard' && selected.pileIndex === i}
-              interactive={isYourTurn && (selected?.kind === 'hand' || !!pile.topCard)}
-              onClick={() => handleDiscardPileClick(i as 0 | 1 | 2 | 3)}
-              onLongPress={selected?.kind === 'hand' ? () => handleDiscardLongPress(i as 0 | 1 | 2 | 3) : undefined}
-              longPressHint={selected?.kind === 'hand' ? 'hold to discard' : undefined}
+              pile={state.you.stockPile}
+              label="Stock"
+              selected={selected?.kind === 'stock'}
+              interactive={isYourTurn && !!state.you.stockPile.topCard}
+              onClick={handleStockClick}
             />
-          ))}
+            {state.you.discardPiles.map((pile, i) => (
+              <PileStack
+                key={i}
+                pile={pile}
+                label={`D${i + 1}`}
+                selected={selected?.kind === 'discard' && selected.pileIndex === i}
+                interactive={isYourTurn && (selected?.kind === 'hand' || !!pile.topCard)}
+                onClick={() => handleDiscardPileClick(i as 0 | 1 | 2 | 3)}
+                onLongPress={selected?.kind === 'hand' ? () => handleDiscardLongPress(i as 0 | 1 | 2 | 3) : undefined}
+                longPressHint={selected?.kind === 'hand' ? 'hold to discard' : undefined}
+              />
+            ))}
+          </div>
         </div>
-      </section>
 
-      <section className="board__hand-row">
-        {state.you.hand.map((c) => (
-          <Card
-            key={c.id}
-            card={c}
-            interactive={isYourTurn}
-            selected={selected?.kind === 'hand' && selected.cardId === c.id}
-            onClick={() => handleHandCardClick(c.id)}
-          />
-        ))}
+        <div className="board__hand-section">
+          <div className="board__player-label board__player-label--hand">MY HAND</div>
+          <div className="board__hand-row">
+            {state.you.hand.map((c) => (
+              <Card
+                key={c.id}
+                card={c}
+                interactive={isYourTurn}
+                selected={selected?.kind === 'hand' && selected.cardId === c.id}
+                onClick={() => handleHandCardClick(c.id)}
+              />
+            ))}
+          </div>
+        </div>
       </section>
 
       {isYourTurn && selected?.kind === 'hand' && (

@@ -214,6 +214,25 @@ button {
   gap: 6px;
 }
 
+.board__player-row--you {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.board__you-piles,
+.board__hand-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.board__hand-section {
+  align-items: flex-end;
+}
+
 .board__player-label {
   display: flex;
   align-items: center;
@@ -221,6 +240,10 @@ button {
   font-size: 0.85rem;
   color: var(--muted);
   font-weight: 600;
+}
+
+.board__player-label--hand {
+  letter-spacing: 0.06em;
 }
 
 .board__dot {
@@ -303,7 +326,7 @@ button {
 
 .board__hand-row {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   gap: clamp(6px, 1.5vw, 14px);
   padding: 8px 0 4px;
   flex-wrap: wrap;
