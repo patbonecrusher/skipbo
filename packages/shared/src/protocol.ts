@@ -19,6 +19,10 @@ export interface RejoinGameMessage {
   playerId: string;
 }
 
+export interface StartGameMessage {
+  action: 'startGame';
+}
+
 export interface PlayCardMessage {
   action: 'playCard';
   source: PlaySource;
@@ -39,6 +43,7 @@ export type ClientMessage =
   | CreateGameMessage
   | JoinGameMessage
   | RejoinGameMessage
+  | StartGameMessage
   | PlayCardMessage
   | DiscardCardMessage
   | RematchMessage;

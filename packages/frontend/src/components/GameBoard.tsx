@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import type { ClientMessage, PileSummary, PlaySource, RedactedGameState } from '@skipbo/shared';
+import type { ActiveGameState, ClientMessage, PileSummary, PlaySource } from '@skipbo/shared';
 import { Card } from './Card';
 import { PileStack } from './PileStack';
+import { OpponentPanel } from './OpponentPanel';
 
 type Selection = { kind: 'hand'; cardId: string } | { kind: 'stock' } | { kind: 'discard'; pileIndex: 0 | 1 | 2 | 3 };
 
 interface GameBoardProps {
-  state: RedactedGameState;
+  state: ActiveGameState;
   send: (message: ClientMessage) => void;
   onLeave: () => void;
 }
@@ -21,6 +22,8 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
   const isYourTurn = state.currentPlayerIndex === state.youIndex && state.status === 'in-progress';
   const gameOver = state.status === 'finished';
   const youWon = gameOver && state.winnerId === state.you.id;
+  const winnerName = gameOver && !youWon ? state.opponents.find((o) => o.id === state.winnerId)?.name ?? 'Someone' : null;
+  const activePlayerName = state.opponents.find((o) => o.playerIndex === state.currentPlayerIndex)?.name ?? null;
 
   const selectedCard =
     selected?.kind === 'hand'
@@ -77,31 +80,19 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
       <header className="board__topbar">
         <span className="board__room-code">Room {state.gameId}</span>
         {gameOver ? (
-          <span className="board__status">{youWon ? 'You won! 🎉' : `${state.opponent.name} won`}</span>
+          <span className="board__status">{youWon ? 'You won! 🎉' : `${winnerName} won`}</span>
         ) : (
-          <span className="board__status">{isYourTurn ? 'Your turn' : `${state.opponent.name}'s turn`}</span>
+          <span className="board__status">{isYourTurn ? 'Your turn' : `${activePlayerName ?? '...'}'s turn`}</span>
         )}
         <button type="button" className="board__leave" onClick={onLeave}>
           Leave
         </button>
       </header>
 
-      <section className="board__player-row board__player-row--opponent">
-        <div className="board__player-label">
-          <span className={`board__dot ${state.opponent.connected ? 'board__dot--on' : 'board__dot--off'}`} />
-          {state.opponent.name}
-        </div>
-        <div className="board__piles">
-          <PileStack pile={state.opponent.stockPile} label="Stock" />
-          <div className="board__hand-count" title={`${state.opponent.handCount} cards in hand`}>
-            {Array.from({ length: state.opponent.handCount }).map((_, i) => (
-              <span key={i} className="board__hand-back" />
-            ))}
-          </div>
-          {state.opponent.discardPiles.map((pile, i) => (
-            <PileStack key={i} pile={pile} label={`D${i + 1}`} />
-          ))}
-        </div>
+      <section className="board__opponents">
+        {state.opponents.map((opponent) => (
+          <OpponentPanel key={opponent.id} opponent={opponent} isTheirTurn={opponent.playerIndex === state.currentPlayerIndex} />
+        ))}
       </section>
 
       <section className="board__build-row">
@@ -158,7 +149,7 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
       {gameOver && (
         <div className="board__overlay">
           <div className="board__overlay-card">
-            <h2>{youWon ? 'You won! 🎉' : `${state.opponent.name} won`}</h2>
+            <h2>{youWon ? 'You won! 🎉' : `${winnerName} won`}</h2>
             <div className="board__overlay-actions">
               <button type="button" className="board__overlay-primary" onClick={() => send({ action: 'rematch' })}>
                 Play again

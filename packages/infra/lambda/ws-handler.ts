@@ -1,7 +1,7 @@
 import { ApiGatewayManagementApiClient, PostToConnectionCommand, GoneException } from '@aws-sdk/client-apigatewaymanagementapi';
 import type { APIGatewayProxyResultV2, APIGatewayProxyWebsocketEventV2 } from 'aws-lambda';
-import { applyDiscard, applyPlay, createGame, redactForPlayer } from '@skipbo/shared';
-import type { ClientMessage, ServerMessage } from '@skipbo/shared';
+import { MAX_PLAYERS, MIN_PLAYERS, applyDiscard, applyPlay, dealGame, redactForPlayer } from '@skipbo/shared';
+import type { ClientMessage, RedactedGameState, ServerMessage } from '@skipbo/shared';
 import {
   ConditionalCheckFailedException,
   GameRecord,
@@ -32,17 +32,27 @@ async function send(connectionId: string, message: ServerMessage): Promise<void>
   }
 }
 
+function redactedForPlayer(record: GameRecord, playerId: string): RedactedGameState {
+  if (record.status === 'waiting-for-players') {
+    const youIndex = record.players.findIndex((p) => p.id === playerId);
+    return {
+      gameId: record.gameId,
+      status: 'waiting-for-players',
+      youIndex,
+      isHost: record.hostId === playerId,
+      players: record.players.map((p) => ({ id: p.id, name: p.name, connected: p.connectionId !== null })),
+      minPlayers: MIN_PLAYERS,
+      maxPlayers: MAX_PLAYERS,
+    };
+  }
+  return redactForPlayer(parseState(record), playerId);
+}
+
 async function broadcastState(record: GameRecord): Promise<void> {
-  if (!record.stateJson) return;
-  const state = parseState(record);
-  const targets: Array<[string | null, string]> = [
-    [record.player1ConnectionId, record.player1Id],
-    [record.player2ConnectionId, record.player2Id ?? ''],
-  ];
   await Promise.all(
-    targets
-      .filter((t): t is [string, string] => !!t[0] && !!t[1])
-      .map(([connectionId, playerId]) => send(connectionId, { type: 'state', state: redactForPlayer(state, playerId) })),
+    record.players
+      .filter((p): p is typeof p & { connectionId: string } => !!p.connectionId)
+      .map((p) => send(p.connectionId, { type: 'state', state: redactedForPlayer(record, p.id) })),
   );
 }
 
@@ -72,11 +82,16 @@ async function handleDisconnect(connectionId: string): Promise<APIGatewayProxyRe
   if (conn) {
     try {
       const record = await saveGameWithRetry(conn.gameId, (rec) => {
-        if (!rec.stateJson) return rec;
-        const state = parseState(rec);
-        const idx = state.players[0].id === conn.playerId ? 0 : 1;
-        state.players[idx].connected = false;
-        return withState(rec, state);
+        const idx = rec.players.findIndex((p) => p.id === conn.playerId);
+        if (idx === -1) return rec;
+        const players = rec.players.map((p, i) => (i === idx ? { ...p, connectionId: null } : p));
+        let updated: GameRecord = { ...rec, players };
+        if (updated.stateJson) {
+          const state = parseState(updated);
+          state.players[idx].connected = false;
+          updated = withState(updated, state);
+        }
+        return updated;
       });
       await broadcastState(record);
     } catch {
@@ -101,34 +116,35 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
       case 'createGame': {
         const playerId = newPlayerId();
         const record = await createPendingGame(playerId, message.playerName.slice(0, 40));
-        record.player1ConnectionId = connectionId;
+        record.players[0].connectionId = connectionId;
         await saveGame(record);
         await putConnection({ connectionId, gameId: record.gameId, playerId });
         await send(connectionId, { type: 'gameCreated', gameId: record.gameId, playerId });
+        await broadcastState(record);
         return { statusCode: 200 };
       }
 
       case 'joinGame': {
-        const existing = await getGame(message.gameId);
-        if (!existing) {
-          await send(connectionId, { type: 'error', message: 'Game not found' });
-          return { statusCode: 200 };
-        }
-        if (existing.player2Id) {
-          await send(connectionId, { type: 'error', message: 'That game already has two players' });
-          return { statusCode: 200 };
-        }
         const playerId = newPlayerId();
-        const state = createGame(
-          existing.gameId,
-          { id: existing.player1Id, name: existing.player1Name },
-          { id: playerId, name: message.playerName.slice(0, 40) },
-        );
-        const record = withState(
-          { ...existing, player2Id: playerId, player2Name: message.playerName.slice(0, 40), player2ConnectionId: connectionId },
-          state,
-        );
-        await saveGame(record);
+        let failure: string | null = null;
+        const record = await saveGameWithRetry(message.gameId, (rec) => {
+          if (rec.status !== 'waiting-for-players') {
+            failure = 'That game has already started';
+            return rec;
+          }
+          if (rec.players.length >= MAX_PLAYERS) {
+            failure = 'That game is full';
+            return rec;
+          }
+          return {
+            ...rec,
+            players: [...rec.players, { id: playerId, name: message.playerName.slice(0, 40), connectionId }],
+          };
+        });
+        if (failure) {
+          await send(connectionId, { type: 'error', message: failure });
+          return { statusCode: 200 };
+        }
         await putConnection({ connectionId, gameId: record.gameId, playerId });
         await send(connectionId, { type: 'joined', gameId: record.gameId, playerId });
         await broadcastState(record);
@@ -137,26 +153,59 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
 
       case 'rejoinGame': {
         const existing = await getGame(message.gameId);
-        if (!existing || (existing.player1Id !== message.playerId && existing.player2Id !== message.playerId)) {
+        if (!existing || !existing.players.some((p) => p.id === message.playerId)) {
           await send(connectionId, { type: 'error', message: 'Game not found for that player' });
           return { statusCode: 200 };
         }
-        const isPlayer1 = existing.player1Id === message.playerId;
-        const record: GameRecord = {
-          ...existing,
-          player1ConnectionId: isPlayer1 ? connectionId : existing.player1ConnectionId,
-          player2ConnectionId: !isPlayer1 ? connectionId : existing.player2ConnectionId,
-        };
-        let toSave = record;
-        if (record.stateJson) {
-          const state = parseState(record);
-          state.players[isPlayer1 ? 0 : 1].connected = true;
-          toSave = withState(record, state);
+        const record = await saveGameWithRetry(message.gameId, (rec) => {
+          const idx = rec.players.findIndex((p) => p.id === message.playerId);
+          if (idx === -1) return rec;
+          const players = rec.players.map((p, i) => (i === idx ? { ...p, connectionId } : p));
+          let updated: GameRecord = { ...rec, players };
+          if (updated.stateJson) {
+            const state = parseState(updated);
+            state.players[idx].connected = true;
+            updated = withState(updated, state);
+          }
+          return updated;
+        });
+        await putConnection({ connectionId, gameId: record.gameId, playerId: message.playerId });
+        await send(connectionId, { type: 'joined', gameId: record.gameId, playerId: message.playerId });
+        await broadcastState(record);
+        return { statusCode: 200 };
+      }
+
+      case 'startGame': {
+        const conn = await getConnection(connectionId);
+        if (!conn) {
+          await send(connectionId, { type: 'error', message: 'Not connected to a game' });
+          return { statusCode: 200 };
         }
-        await saveGame(toSave);
-        await putConnection({ connectionId, gameId: toSave.gameId, playerId: message.playerId });
-        await send(connectionId, { type: 'joined', gameId: toSave.gameId, playerId: message.playerId });
-        await broadcastState(toSave);
+        let failure: string | null = null;
+        const record = await saveGameWithRetry(conn.gameId, (rec) => {
+          if (rec.hostId !== conn.playerId) {
+            failure = 'Only the host can start the game';
+            return rec;
+          }
+          if (rec.status !== 'waiting-for-players') {
+            failure = 'Game already started';
+            return rec;
+          }
+          if (rec.players.length < MIN_PLAYERS) {
+            failure = `Need at least ${MIN_PLAYERS} players to start`;
+            return rec;
+          }
+          const freshState = dealGame(
+            rec.gameId,
+            rec.players.map((p) => ({ id: p.id, name: p.name })),
+          );
+          return withState(rec, freshState);
+        });
+        if (failure) {
+          await send(connectionId, { type: 'error', message: failure });
+        } else {
+          await broadcastState(record);
+        }
         return { statusCode: 200 };
       }
 
@@ -169,6 +218,10 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
         }
         let failure: string | null = null;
         const record = await saveGameWithRetry(conn.gameId, (rec) => {
+          if (!rec.stateJson) {
+            failure = 'Game has not started yet';
+            return rec;
+          }
           const state = parseState(rec);
           const result =
             message.action === 'playCard'
@@ -196,14 +249,13 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
         }
         let failure: string | null = null;
         const record = await saveGameWithRetry(conn.gameId, (rec) => {
-          if (rec.status !== 'finished' || !rec.player2Id || !rec.player2Name) {
+          if (rec.status !== 'finished') {
             failure = 'Game is not finished yet';
             return rec;
           }
-          const freshState = createGame(
+          const freshState = dealGame(
             rec.gameId,
-            { id: rec.player1Id, name: rec.player1Name },
-            { id: rec.player2Id, name: rec.player2Name },
+            rec.players.map((p) => ({ id: p.id, name: p.name })),
           );
           return withState(rec, freshState);
         });

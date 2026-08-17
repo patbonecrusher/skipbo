@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createGame, applyPlay, applyDiscard, redactForPlayer } from './engine.js';
-import type { Card, GameState } from './types.js';
+import { dealGame, applyPlay, applyDiscard, redactForPlayer } from './engine.js';
+import type { ActiveGameState, Card, GameState } from './types.js';
 
 function card(id: string, value: Card['value']): Card {
   return { id, value };
@@ -38,25 +38,54 @@ function baseState(overrides: Partial<GameState> = {}): GameState {
   };
 }
 
-describe('createGame', () => {
-  it('deals the correct number of cards to each pile', () => {
-    const state = createGame('g1', { id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' });
-    expect(state.players[0].stockPile).toHaveLength(30);
-    expect(state.players[1].stockPile).toHaveLength(30);
-    expect(state.players[0].hand).toHaveLength(5);
-    expect(state.players[1].hand).toHaveLength(5);
-    expect(state.drawPile).toHaveLength(162 - 30 - 30 - 5 - 5);
+describe('dealGame', () => {
+  it('deals 30-card stock piles for 2 players', () => {
+    const state = dealGame('g1', [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }]);
+    expect(state.players).toHaveLength(2);
+    state.players.forEach((p) => expect(p.stockPile).toHaveLength(30));
+    state.players.forEach((p) => expect(p.hand).toHaveLength(5));
+    expect(state.drawPile).toHaveLength(162 - 30 * 2 - 5 * 2);
+  });
 
+  it('deals 20-card stock piles for 3-4 players', () => {
+    const three = dealGame('g1', [{ id: 'p1', name: 'A' }, { id: 'p2', name: 'B' }, { id: 'p3', name: 'C' }]);
+    three.players.forEach((p) => expect(p.stockPile).toHaveLength(20));
+
+    const four = dealGame('g2', [
+      { id: 'p1', name: 'A' },
+      { id: 'p2', name: 'B' },
+      { id: 'p3', name: 'C' },
+      { id: 'p4', name: 'D' },
+    ]);
+    four.players.forEach((p) => expect(p.stockPile).toHaveLength(20));
+  });
+
+  it('deals 15-card stock piles for 5-6 players', () => {
+    const six = dealGame(
+      'g1',
+      Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, name: `Player ${i}` })),
+    );
+    expect(six.players).toHaveLength(6);
+    six.players.forEach((p) => expect(p.stockPile).toHaveLength(15));
+  });
+
+  it('deals every card exactly once with no duplicates or overlaps', () => {
+    const state = dealGame(
+      'g1',
+      Array.from({ length: 5 }, (_, i) => ({ id: `p${i}`, name: `Player ${i}` })),
+    );
     const allIds = new Set<string>();
     const allCards = [
-      ...state.players[0].stockPile,
-      ...state.players[1].stockPile,
-      ...state.players[0].hand,
-      ...state.players[1].hand,
+      ...state.players.flatMap((p) => [...p.stockPile, ...p.hand]),
       ...state.drawPile,
     ];
     allCards.forEach((c) => allIds.add(c.id));
     expect(allIds.size).toBe(162);
+    expect(allCards).toHaveLength(162);
+  });
+
+  it('rejects fewer than 2 players', () => {
+    expect(() => dealGame('g1', [{ id: 'p1', name: 'Solo' }])).toThrow();
   });
 });
 
@@ -115,7 +144,6 @@ describe('applyPlay', () => {
     state.players[0].hand = [card('h1', 12)];
     const result = applyPlay(state, { type: 'play', playerId: 'p1', source: { kind: 'hand', cardId: 'h1' }, buildPileIndex: 0 });
     expect(result.ok).toBe(true);
-    // The completed pile's 12 cards get reshuffled into the draw pile to refill the hand to 5.
     expect(result.state.players[0].hand).toHaveLength(5);
     expect(result.state.usedPile).toHaveLength(0);
     expect(result.state.drawPile).toHaveLength(7);
@@ -163,6 +191,26 @@ describe('applyDiscard', () => {
     expect(result.state.players[1].hand).toHaveLength(5);
   });
 
+  it('wraps turn order around from the last player back to the first', () => {
+    const state = baseState({
+      players: [
+        { id: 'p1', name: 'A', connected: true, stockPile: [], hand: [card('h1', 1)], discardPiles: [[], [], [], []] },
+        { id: 'p2', name: 'B', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p3', name: 'C', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+      ],
+      currentPlayerIndex: 0,
+    });
+    // First advance to the last player (index 2) via two discards, then confirm the third wraps to 0.
+    let result = applyDiscard(state, { type: 'discard', playerId: 'p1', cardId: 'h1', pileIndex: 0 });
+    expect(result.state.currentPlayerIndex).toBe(1);
+    result.state.players[1].hand = [card('h2', 1)];
+    result = applyDiscard(result.state, { type: 'discard', playerId: 'p2', cardId: 'h2', pileIndex: 0 });
+    expect(result.state.currentPlayerIndex).toBe(2);
+    result.state.players[2].hand = [card('h3', 1)];
+    result = applyDiscard(result.state, { type: 'discard', playerId: 'p3', cardId: 'h3', pileIndex: 0 });
+    expect(result.state.currentPlayerIndex).toBe(0);
+  });
+
   it('rejects discarding a card not in hand', () => {
     const state = baseState();
     const result = applyDiscard(state, { type: 'discard', playerId: 'p1', cardId: 'nope', pileIndex: 0 });
@@ -171,12 +219,26 @@ describe('applyDiscard', () => {
 });
 
 describe('redactForPlayer', () => {
-  it('hides the opponent hand values but keeps your own visible', () => {
+  it('hides opponent hand values but keeps your own visible (2 players)', () => {
     const state = baseState();
     state.players[1].hand = [card('h2', 2), card('h3', 9)];
-    const view = redactForPlayer(state, 'p1');
+    const view = redactForPlayer(state, 'p1') as ActiveGameState;
     expect(view.you.hand.map((c) => c.value)).toEqual([1]);
-    expect(view.opponent.handCount).toBe(2);
-    expect((view.opponent as unknown as { hand?: unknown }).hand).toBeUndefined();
+    expect(view.opponents).toHaveLength(1);
+    expect(view.opponents[0].handCount).toBe(2);
+    expect((view.opponents[0] as unknown as { hand?: unknown }).hand).toBeUndefined();
+  });
+
+  it('lists opponents starting with the next player after you, wrapping around', () => {
+    const state = baseState({
+      players: [
+        { id: 'p1', name: 'A', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p2', name: 'B', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p3', name: 'C', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p4', name: 'D', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+      ],
+    });
+    const view = redactForPlayer(state, 'p3') as ActiveGameState;
+    expect(view.opponents.map((o) => o.name)).toEqual(['D', 'A', 'B']);
   });
 });

@@ -3,10 +3,10 @@ import type { RedactedGameState, ServerMessage } from '@skipbo/shared';
 import { useWebSocket } from './useWebSocket';
 import { clearSession, loadSession, saveSession } from './session';
 import { HomeScreen } from './components/HomeScreen';
-import { WaitingRoom } from './components/WaitingRoom';
+import { LobbyView } from './components/LobbyView';
 import { GameBoard } from './components/GameBoard';
 
-type Phase = { kind: 'home' } | { kind: 'connecting-existing' } | { kind: 'waiting'; gameId: string } | { kind: 'game' };
+type Phase = { kind: 'home' } | { kind: 'connecting-existing' } | { kind: 'connected' };
 
 async function resolveWsUrl(): Promise<string> {
   const envUrl = import.meta.env.VITE_WS_URL as string | undefined;
@@ -33,7 +33,6 @@ export default function App() {
     switch (msg.type) {
       case 'gameCreated': {
         saveSession({ gameId: msg.gameId, playerId: msg.playerId, playerName: pendingNameRef.current ?? '' });
-        setPhase({ kind: 'waiting', gameId: msg.gameId });
         setError(null);
         break;
       }
@@ -45,7 +44,7 @@ export default function App() {
       }
       case 'state': {
         setGameState(msg.state);
-        setPhase({ kind: 'game' });
+        setPhase({ kind: 'connected' });
         setError(null);
         break;
       }
@@ -105,11 +104,10 @@ export default function App() {
     );
   }
 
-  if (phase.kind === 'waiting') {
-    return <WaitingRoom gameId={phase.gameId} onLeave={handleLeave} />;
-  }
-
-  if (phase.kind === 'game' && gameState) {
+  if (phase.kind === 'connected' && gameState) {
+    if (gameState.status === 'waiting-for-players') {
+      return <LobbyView state={gameState} send={send} onLeave={handleLeave} />;
+    }
     return (
       <>
         <GameBoard state={gameState} send={send} onLeave={handleLeave} />

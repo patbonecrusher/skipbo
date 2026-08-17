@@ -11,7 +11,7 @@ import {
   PlayCardAction,
   PlayerState,
   RedactedGameState,
-  STOCK_PILE_SIZE,
+  stockPileSizeForPlayerCount,
 } from './types.js';
 
 export interface NewPlayer {
@@ -19,7 +19,9 @@ export interface NewPlayer {
   name: string;
 }
 
-export function createGame(gameId: string, p1: NewPlayer, p2: NewPlayer): GameState {
+export function dealGame(gameId: string, players: NewPlayer[]): GameState {
+  if (players.length < 2) throw new Error('At least 2 players are required');
+  const stockSize = stockPileSizeForPlayerCount(players.length);
   const deck = shuffle(createFullDeck());
   let idx = 0;
   const take = (n: number): Card[] => {
@@ -28,22 +30,25 @@ export function createGame(gameId: string, p1: NewPlayer, p2: NewPlayer): GameSt
     return slice;
   };
 
-  const stock1 = take(STOCK_PILE_SIZE);
-  const stock2 = take(STOCK_PILE_SIZE);
-  const hand1 = take(HAND_SIZE);
-  const hand2 = take(HAND_SIZE);
+  const dealtPlayers: PlayerState[] = players.map((p) => ({
+    id: p.id,
+    name: p.name,
+    connected: true,
+    stockPile: take(stockSize),
+    hand: [],
+    discardPiles: [[], [], [], []],
+  }));
+  // Deal hands after all stock piles so a player's stock size never depends on deal order.
+  for (const player of dealtPlayers) {
+    player.hand = take(HAND_SIZE);
+  }
   const drawPile = deck.slice(idx);
-
-  const players: [PlayerState, PlayerState] = [
-    { id: p1.id, name: p1.name, connected: true, stockPile: stock1, hand: hand1, discardPiles: [[], [], [], []] },
-    { id: p2.id, name: p2.name, connected: true, stockPile: stock2, hand: hand2, discardPiles: [[], [], [], []] },
-  ];
 
   return {
     gameId,
     status: 'in-progress',
-    players,
-    currentPlayerIndex: Math.random() < 0.5 ? 0 : 1,
+    players: dealtPlayers,
+    currentPlayerIndex: Math.floor(Math.random() * dealtPlayers.length),
     buildPiles: [[], [], [], []],
     drawPile,
     usedPile: [],
@@ -56,10 +61,8 @@ function cloneState(state: GameState): GameState {
   return structuredClone(state);
 }
 
-function getPlayerIndex(state: GameState, playerId: string): 0 | 1 | -1 {
-  if (state.players[0].id === playerId) return 0;
-  if (state.players[1].id === playerId) return 1;
-  return -1;
+function getPlayerIndex(state: GameState, playerId: string): number {
+  return state.players.findIndex((p) => p.id === playerId);
 }
 
 function canPlayOnBuildPile(card: Card, buildPile: Card[]): boolean {
@@ -70,7 +73,7 @@ function canPlayOnBuildPile(card: Card, buildPile: Card[]): boolean {
 function drawUpToHandSize(state: GameState, player: PlayerState): void {
   while (player.hand.length < HAND_SIZE) {
     if (state.drawPile.length === 0) {
-      if (state.usedPile.length === 0) return; // no cards left anywhere (cannot happen with a full deck in a 2-player game)
+      if (state.usedPile.length === 0) return; // no cards left anywhere (cannot happen with a full deck)
       state.drawPile = shuffle(state.usedPile);
       state.usedPile = [];
     }
@@ -166,8 +169,8 @@ export function applyDiscard(state: GameState, action: DiscardCardAction): Engin
   const [card] = player.hand.splice(handIdx, 1);
   player.discardPiles[action.pileIndex].push(card);
 
-  // End turn: switch to the other player and draw them up to a full hand.
-  const nextPlayerIndex: 0 | 1 = playerIndex === 0 ? 1 : 0;
+  // End turn: advance to the next player (wrapping around) and draw them up to a full hand.
+  const nextPlayerIndex = (playerIndex + 1) % next.players.length;
   next.currentPlayerIndex = nextPlayerIndex;
   drawUpToHandSize(next, next.players[nextPlayerIndex]);
 
@@ -181,13 +184,26 @@ function summarize(pile: Card[]): PileSummary {
 export function redactForPlayer(state: GameState, forPlayerId: string): RedactedGameState {
   const youIndex = getPlayerIndex(state, forPlayerId);
   if (youIndex === -1) throw new Error('Unknown player');
-  const oppIndex: 0 | 1 = youIndex === 0 ? 1 : 0;
   const you = state.players[youIndex];
-  const opp = state.players[oppIndex];
+
+  const opponents = state.players
+    .map((p, playerIndex) => ({ p, playerIndex }))
+    .filter(({ playerIndex }) => playerIndex !== youIndex)
+    // Order starting with whoever plays right after you, wrapping around.
+    .sort((a, b) => ((a.playerIndex - youIndex + state.players.length) % state.players.length) - ((b.playerIndex - youIndex + state.players.length) % state.players.length))
+    .map(({ p, playerIndex }) => ({
+      id: p.id,
+      name: p.name,
+      connected: p.connected,
+      playerIndex,
+      stockPile: summarize(p.stockPile),
+      handCount: p.hand.length,
+      discardPiles: p.discardPiles.map(summarize) as [PileSummary, PileSummary, PileSummary, PileSummary],
+    }));
 
   return {
     gameId: state.gameId,
-    status: state.status,
+    status: state.status as 'in-progress' | 'finished',
     currentPlayerIndex: state.currentPlayerIndex,
     youIndex,
     you: {
@@ -196,17 +212,10 @@ export function redactForPlayer(state: GameState, forPlayerId: string): Redacted
       connected: you.connected,
       stockPile: summarize(you.stockPile),
       hand: you.hand.slice(),
-      discardPiles: you.discardPiles.map(summarize) as RedactedGameState['you']['discardPiles'],
+      discardPiles: you.discardPiles.map(summarize) as [PileSummary, PileSummary, PileSummary, PileSummary],
     },
-    opponent: {
-      id: opp.id,
-      name: opp.name,
-      connected: opp.connected,
-      stockPile: summarize(opp.stockPile),
-      handCount: opp.hand.length,
-      discardPiles: opp.discardPiles.map(summarize) as RedactedGameState['opponent']['discardPiles'],
-    },
-    buildPiles: state.buildPiles.map(summarize) as RedactedGameState['buildPiles'],
+    opponents,
+    buildPiles: state.buildPiles.map(summarize) as [PileSummary, PileSummary, PileSummary, PileSummary],
     drawPileCount: state.drawPile.length + state.usedPile.length,
     winnerId: state.winnerId,
   };

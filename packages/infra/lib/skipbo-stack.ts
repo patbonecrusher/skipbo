@@ -11,6 +11,9 @@ import { Bucket, BlockPublicAccess } from 'aws-cdk-lib/aws-s3';
 import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
 import { Distribution, ViewerProtocolPolicy } from 'aws-cdk-lib/aws-cloudfront';
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
+import { Certificate, CertificateValidation } from 'aws-cdk-lib/aws-certificatemanager';
+import { HostedZone, ARecord, AaaaRecord, RecordTarget } from 'aws-cdk-lib/aws-route53';
+import { CloudFrontTarget } from 'aws-cdk-lib/aws-route53-targets';
 import type { Construct } from 'constructs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -75,12 +78,37 @@ export class SkipboStack extends Stack {
       autoDeleteObjects: true,
     });
 
+    const domainName = 'skipbo.patlaplante.com';
+    const hostedZone = HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
+      hostedZoneId: 'Z2CPV6KLV2FQA0',
+      zoneName: 'patlaplante.com',
+    });
+
+    const certificate = new Certificate(this, 'SiteCertificate', {
+      domainName,
+      validation: CertificateValidation.fromDns(hostedZone),
+    });
+
     const distribution = new Distribution(this, 'SiteDistribution', {
       defaultRootObject: 'index.html',
+      domainNames: [domainName],
+      certificate,
       defaultBehavior: {
         origin: S3BucketOrigin.withOriginAccessControl(siteBucket),
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       },
+    });
+
+    new ARecord(this, 'SiteAliasRecordV4', {
+      zone: hostedZone,
+      recordName: 'skipbo',
+      target: RecordTarget.fromAlias(new CloudFrontTarget(distribution)),
+    });
+
+    new AaaaRecord(this, 'SiteAliasRecordV6', {
+      zone: hostedZone,
+      recordName: 'skipbo',
+      target: RecordTarget.fromAlias(new CloudFrontTarget(distribution)),
     });
 
     new BucketDeployment(this, 'SiteDeployment', {
@@ -93,7 +121,8 @@ export class SkipboStack extends Stack {
       distributionPaths: ['/*'],
     });
 
-    new CfnOutput(this, 'SiteUrl', { value: `https://${distribution.distributionDomainName}` });
+    new CfnOutput(this, 'SiteUrl', { value: `https://${domainName}` });
+    new CfnOutput(this, 'CloudFrontDefaultUrl', { value: `https://${distribution.distributionDomainName}` });
     new CfnOutput(this, 'WebSocketUrl', { value: stage.url });
   }
 }

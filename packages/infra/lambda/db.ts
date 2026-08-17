@@ -9,15 +9,17 @@ const CONNECTIONS_TABLE = process.env.CONNECTIONS_TABLE!;
 
 const GAME_TTL_SECONDS = 60 * 60 * 24 * 3; // games are cleaned up 3 days after creation
 
+export interface GamePlayer {
+  id: string;
+  name: string;
+  connectionId: string | null;
+}
+
 export interface GameRecord {
   gameId: string;
   status: 'waiting-for-players' | 'in-progress' | 'finished';
-  player1Id: string;
-  player1Name: string;
-  player1ConnectionId: string | null;
-  player2Id: string | null;
-  player2Name: string | null;
-  player2ConnectionId: string | null;
+  hostId: string;
+  players: GamePlayer[];
   stateJson: string | null;
   version: number;
   createdAt: number;
@@ -38,19 +40,15 @@ export function newPlayerId(): string {
   return crypto.randomUUID();
 }
 
-export async function createPendingGame(player1Id: string, player1Name: string): Promise<GameRecord> {
+export async function createPendingGame(hostId: string, hostName: string): Promise<GameRecord> {
   const now = Date.now();
   for (let attempt = 0; attempt < 5; attempt++) {
     const gameId = randomGameCode();
     const record: GameRecord = {
       gameId,
       status: 'waiting-for-players',
-      player1Id,
-      player1Name,
-      player1ConnectionId: null,
-      player2Id: null,
-      player2Name: null,
-      player2ConnectionId: null,
+      hostId,
+      players: [{ id: hostId, name: hostName, connectionId: null }],
       stateJson: null,
       version: 0,
       createdAt: now,

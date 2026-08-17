@@ -5,11 +5,19 @@ export interface Card {
   value: CardValue;
 }
 
-export const STOCK_PILE_SIZE = 30;
 export const HAND_SIZE = 5;
 export const BUILD_PILE_COUNT = 4;
 export const DISCARD_PILE_COUNT = 4;
 export const MAX_BUILD_VALUE = 12;
+export const MIN_PLAYERS = 2;
+export const MAX_PLAYERS = 6;
+
+/** Official Skip-Bo stock pile size scales down as more players share the 162-card deck. */
+export function stockPileSizeForPlayerCount(playerCount: number): number {
+  if (playerCount <= 2) return 30;
+  if (playerCount <= 4) return 20;
+  return 15;
+}
 
 export interface PlayerState {
   id: string;
@@ -25,8 +33,8 @@ export type GameStatus = 'waiting-for-players' | 'in-progress' | 'finished';
 export interface GameState {
   gameId: string;
   status: GameStatus;
-  players: [PlayerState, PlayerState];
-  currentPlayerIndex: 0 | 1;
+  players: PlayerState[];
+  currentPlayerIndex: number;
   buildPiles: [Card[], Card[], Card[], Card[]];
   drawPile: Card[];
   usedPile: Card[]; // cleared (completed) build piles, reshuffled into drawPile when it empties
@@ -83,19 +91,39 @@ export interface RedactedOpponent {
   id: string;
   name: string;
   connected: boolean;
+  playerIndex: number;
   stockPile: PileSummary;
   handCount: number;
   discardPiles: [PileSummary, PileSummary, PileSummary, PileSummary];
 }
 
-export interface RedactedGameState {
+export interface LobbyPlayer {
+  id: string;
+  name: string;
+  connected: boolean;
+}
+
+export interface LobbyGameState {
   gameId: string;
-  status: GameStatus;
-  currentPlayerIndex: 0 | 1;
+  status: 'waiting-for-players';
+  youIndex: number;
+  isHost: boolean;
+  players: LobbyPlayer[];
+  minPlayers: number;
+  maxPlayers: number;
+}
+
+export interface ActiveGameState {
+  gameId: string;
+  status: 'in-progress' | 'finished';
+  currentPlayerIndex: number;
+  youIndex: number;
   you: RedactedSelf;
-  youIndex: 0 | 1;
-  opponent: RedactedOpponent;
+  /** All other players, in turn order starting with whoever plays right after you. */
+  opponents: RedactedOpponent[];
   buildPiles: [PileSummary, PileSummary, PileSummary, PileSummary];
   drawPileCount: number;
   winnerId: string | null;
 }
+
+export type RedactedGameState = LobbyGameState | ActiveGameState;
