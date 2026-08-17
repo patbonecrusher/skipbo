@@ -7,7 +7,7 @@
   --accent: #f4b942;
   --danger: #e05252;
   --card-w: clamp(48px, 8vw, 76px);
-  --card-h: calc(var(--card-w) * 1.4);
+  --card-h: calc(var(--card-w) * 1.6);
   color-scheme: dark;
 }
 
@@ -41,40 +41,43 @@ button {
   height: var(--card-h);
   border-radius: 10px;
   border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: clamp(1.1rem, 3vw, 1.6rem);
-  font-weight: 700;
-  color: white;
+  overflow: hidden;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   padding: 0;
   cursor: default;
   position: relative;
+  background: white;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
   touch-action: manipulation;
 }
 
-.card--wild {
-  background: linear-gradient(135deg, #f4b942, #e05252 50%, #7d3cf4);
+.card__face {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
 }
 
-.card__main-value {
-  font-size: clamp(1.3rem, 3.6vw, 1.9rem);
-}
-
-.card__wild-badge {
+.card__value-badge {
   position: absolute;
-  top: 3px;
-  right: 4px;
-  font-size: 0.55rem;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 46%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: rgba(15, 61, 46, 0.92);
+  border: 2px solid white;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(1.1rem, 3.2vw, 1.7rem);
   font-weight: 800;
-  letter-spacing: 0.02em;
-  background: rgba(0, 0, 0, 0.35);
-  padding: 1px 4px;
-  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
 .card--empty {
@@ -83,6 +86,9 @@ button {
   color: var(--muted);
   font-weight: 600;
   font-size: clamp(0.75rem, 2vw, 0.95rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .card__empty-label {
@@ -294,12 +300,13 @@ button {
 }
 
 .board__hand-back {
-  width: 12px;
+  width: 16px;
   height: calc(var(--card-h) * 0.6);
+  object-fit: cover;
   border-radius: 3px;
-  background: repeating-linear-gradient(45deg, #274b3c, #274b3c 4px, #1c3a2e 4px, #1c3a2e 8px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  margin-left: -8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  margin-left: -10px;
 }
 
 .board__hand-back:first-child {

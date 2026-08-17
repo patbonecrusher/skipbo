@@ -1,5 +1,6 @@
 import type { RedactedOpponent } from '@skipbo/shared';
 import { PileStack } from './PileStack';
+import { CARD_BACK } from '../cardFaces';
 
 interface OpponentPanelProps {
   opponent: RedactedOpponent;
@@ -17,7 +18,7 @@ export function OpponentPanel({ opponent, isTheirTurn }: OpponentPanelProps) {
         <PileStack pile={opponent.stockPile} label="Stock" />
         <div className="board__hand-count" title={`${opponent.handCount} cards in hand`}>
           {Array.from({ length: opponent.handCount }).map((_, i) => (
-            <span key={i} className="board__hand-back" />
+            <img key={i} src={CARD_BACK} className="board__hand-back" alt="" draggable={false} />
           ))}
         </div>
         {opponent.discardPiles.map((pile, i) => (

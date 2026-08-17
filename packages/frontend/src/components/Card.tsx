@@ -1,19 +1,5 @@
 import type { Card as CardModel } from '@skipbo/shared';
-
-const VALUE_COLORS: Record<number, string> = {
-  1: '#c0392b',
-  2: '#d35400',
-  3: '#e67e22',
-  4: '#f39c12',
-  5: '#27ae60',
-  6: '#16a085',
-  7: '#2980b9',
-  8: '#2c3e50',
-  9: '#8e44ad',
-  10: '#6c3483',
-  11: '#943126',
-  12: '#1a5276',
-};
+import { CARD_FACES } from '../cardFaces';
 
 interface CardProps {
   card: CardModel | null;
@@ -37,14 +23,12 @@ export function Card({ card, emptyLabel, selected, dimmed, interactive, holding,
   }
 
   const isWild = card.value === 'SKIPBO';
-  const style = isWild ? undefined : { background: VALUE_COLORS[card.value as number] };
 
   return (
     <button
       type="button"
       className={[
         'card',
-        isWild ? 'card--wild' : '',
         selected ? 'card--selected' : '',
         dimmed ? 'card--dimmed' : '',
         interactive ? 'card--interactive' : '',
@@ -52,20 +36,11 @@ export function Card({ card, emptyLabel, selected, dimmed, interactive, holding,
       ]
         .filter(Boolean)
         .join(' ')}
-      style={style}
       disabled={!interactive}
       onClick={onClick}
     >
-      {isWild && effectiveValue ? (
-        <>
-          <span className="card__main-value">{effectiveValue}</span>
-          <span className="card__wild-badge">SB</span>
-        </>
-      ) : isWild ? (
-        'SB'
-      ) : (
-        card.value
-      )}
+      <img className="card__face" src={CARD_FACES[card.value]} alt={isWild ? 'Skip-Bo' : String(card.value)} draggable={false} />
+      {isWild && effectiveValue ? <span className="card__value-badge">{effectiveValue}</span> : null}
     </button>
   );
 }
