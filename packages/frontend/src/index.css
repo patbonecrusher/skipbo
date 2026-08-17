@@ -7,7 +7,6 @@
   --accent: #f4b942;
   --danger: #e05252;
   --card-w: clamp(48px, 8vw, 76px);
-  --card-h: calc(var(--card-w) * 1.6);
   color-scheme: dark;
 }
 
@@ -38,7 +37,7 @@ button {
 
 .card {
   width: var(--card-w);
-  height: var(--card-h);
+  aspect-ratio: 1 / 1.6;
   border-radius: 10px;
   border: none;
   overflow: hidden;
