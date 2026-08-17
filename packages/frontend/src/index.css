@@ -220,6 +220,7 @@ button {
   justify-content: space-between;
   align-items: flex-end;
   gap: 16px;
+  --card-w: clamp(56px, 8.5vw, 90px);
 }
 
 .board__you-piles,
