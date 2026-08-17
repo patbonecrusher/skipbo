@@ -293,12 +293,13 @@ button {
 .board__build-row {
   display: flex;
   justify-content: center;
-  gap: clamp(8px, 2vw, 20px);
+  gap: clamp(12px, 2.5vw, 32px);
   background: rgba(0, 0, 0, 0.15);
   border-radius: 16px;
   padding: clamp(8px, 1.5vh, 16px) 8px;
   flex: 1;
   align-items: center;
+  --card-w: clamp(90px, 12vw, 190px);
 }
 
 .board__hand-row {
