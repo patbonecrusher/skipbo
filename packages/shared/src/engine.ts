@@ -4,6 +4,7 @@ import {
   Card,
   DiscardCardAction,
   EngineResult,
+  ErrorCode,
   GameState,
   HAND_SIZE,
   MAX_BUILD_VALUE,
@@ -93,21 +94,21 @@ function clearCompletedBuildPiles(state: GameState): void {
   }
 }
 
-function fail(state: GameState, error: string): EngineResult {
+function fail(state: GameState, error: ErrorCode): EngineResult {
   return { ok: false, error, state };
 }
 
 export function applyPlay(state: GameState, action: PlayCardAction): EngineResult {
   const next = cloneState(state);
-  if (next.status !== 'in-progress') return fail(state, 'Game is not in progress');
+  if (next.status !== 'in-progress') return fail(state, 'GAME_NOT_IN_PROGRESS');
 
   const playerIndex = getPlayerIndex(next, action.playerId);
-  if (playerIndex === -1) return fail(state, 'Unknown player');
-  if (playerIndex !== next.currentPlayerIndex) return fail(state, 'Not your turn');
+  if (playerIndex === -1) return fail(state, 'UNKNOWN_PLAYER');
+  if (playerIndex !== next.currentPlayerIndex) return fail(state, 'NOT_YOUR_TURN');
 
   const player = next.players[playerIndex];
   const buildPileIndex = action.buildPileIndex;
-  if (buildPileIndex < 0 || buildPileIndex > 3) return fail(state, 'Invalid build pile');
+  if (buildPileIndex < 0 || buildPileIndex > 3) return fail(state, 'INVALID_BUILD_PILE');
   const buildPile = next.buildPiles[buildPileIndex];
 
   let card: Card | undefined;
@@ -127,7 +128,7 @@ export function applyPlay(state: GameState, action: PlayCardAction): EngineResul
     };
   } else {
     const pileIndex = action.source.pileIndex;
-    if (pileIndex < 0 || pileIndex > 3) return fail(state, 'Invalid discard pile');
+    if (pileIndex < 0 || pileIndex > 3) return fail(state, 'INVALID_DISCARD_PILE');
     const pile = player.discardPiles[pileIndex];
     card = pile[pile.length - 1];
     removeFromSource = () => {
@@ -135,8 +136,8 @@ export function applyPlay(state: GameState, action: PlayCardAction): EngineResul
     };
   }
 
-  if (!card) return fail(state, 'No card available at that source');
-  if (!canPlayOnBuildPile(card, buildPile)) return fail(state, 'Card cannot be played on that build pile');
+  if (!card) return fail(state, 'NO_CARD_AT_SOURCE');
+  if (!canPlayOnBuildPile(card, buildPile)) return fail(state, 'CARD_CANNOT_BE_PLAYED');
 
   const sourceKind = action.source.kind;
   removeFromSource();
@@ -155,16 +156,16 @@ export function applyPlay(state: GameState, action: PlayCardAction): EngineResul
 
 export function applyDiscard(state: GameState, action: DiscardCardAction): EngineResult {
   const next = cloneState(state);
-  if (next.status !== 'in-progress') return fail(state, 'Game is not in progress');
+  if (next.status !== 'in-progress') return fail(state, 'GAME_NOT_IN_PROGRESS');
 
   const playerIndex = getPlayerIndex(next, action.playerId);
-  if (playerIndex === -1) return fail(state, 'Unknown player');
-  if (playerIndex !== next.currentPlayerIndex) return fail(state, 'Not your turn');
-  if (action.pileIndex < 0 || action.pileIndex > 3) return fail(state, 'Invalid discard pile');
+  if (playerIndex === -1) return fail(state, 'UNKNOWN_PLAYER');
+  if (playerIndex !== next.currentPlayerIndex) return fail(state, 'NOT_YOUR_TURN');
+  if (action.pileIndex < 0 || action.pileIndex > 3) return fail(state, 'INVALID_DISCARD_PILE');
 
   const player = next.players[playerIndex];
   const handIdx = player.hand.findIndex((c) => c.id === action.cardId);
-  if (handIdx === -1) return fail(state, 'Card not in hand');
+  if (handIdx === -1) return fail(state, 'CARD_NOT_IN_HAND');
 
   const [card] = player.hand.splice(handIdx, 1);
   player.discardPiles[action.pileIndex].push(card);

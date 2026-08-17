@@ -122,7 +122,7 @@ describe('applyPlay', () => {
     const state = baseState({ currentPlayerIndex: 1 });
     const result = applyPlay(state, { type: 'play', playerId: 'p1', source: { kind: 'hand', cardId: 'h1' }, buildPileIndex: 0 });
     expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/not your turn/i);
+    expect(result.error).toBe('NOT_YOUR_TURN');
   });
 
   it('clears a build pile once it reaches 12 and moves the cards to the used pile', () => {

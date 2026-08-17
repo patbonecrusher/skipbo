@@ -65,9 +65,32 @@ export interface DiscardCardAction {
 
 export type GameAction = PlayCardAction | DiscardCardAction;
 
+/** Stable, machine-readable error identifiers -- clients localize these into user-facing text. */
+export type ErrorCode =
+  | 'GAME_NOT_IN_PROGRESS'
+  | 'UNKNOWN_PLAYER'
+  | 'NOT_YOUR_TURN'
+  | 'INVALID_BUILD_PILE'
+  | 'NO_CARD_AT_SOURCE'
+  | 'CARD_CANNOT_BE_PLAYED'
+  | 'INVALID_DISCARD_PILE'
+  | 'CARD_NOT_IN_HAND'
+  | 'INVALID_MOVE'
+  | 'MALFORMED_MESSAGE'
+  | 'GAME_NOT_FOUND_FOR_PLAYER'
+  | 'NOT_CONNECTED'
+  | 'GAME_ALREADY_STARTED'
+  | 'GAME_FULL'
+  | 'NOT_HOST'
+  | 'NOT_ENOUGH_PLAYERS'
+  | 'GAME_NOT_STARTED'
+  | 'GAME_NOT_FINISHED'
+  | 'UNKNOWN_ACTION'
+  | 'SERVER_ERROR';
+
 export interface EngineResult {
   ok: boolean;
-  error?: string;
+  error?: ErrorCode;
   state: GameState;
 }
 

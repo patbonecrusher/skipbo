@@ -187,6 +187,12 @@ button {
   padding: 6px 4px;
 }
 
+.board__topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .board__room-code {
   font-size: 0.8rem;
   color: var(--muted);
@@ -405,6 +411,7 @@ button {
 
 .home,
 .waiting {
+  position: relative;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -520,4 +527,37 @@ button {
 
 .waiting__hint {
   color: var(--muted);
+}
+
+/* ---- Language toggle ---- */
+
+.lang-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--panel);
+  border-radius: 999px;
+  padding: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.home-lang-toggle {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+.lang-toggle__btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 5px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.lang-toggle__btn--active {
+  background: var(--accent);
+  color: #1a1a1a;
 }

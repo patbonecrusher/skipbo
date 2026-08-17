@@ -2,9 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RedactedGameState, ServerMessage } from '@skipbo/shared';
 import { useWebSocket } from './useWebSocket';
 import { clearSession, loadSession, saveSession } from './session';
+import { useLanguage } from './i18n/context';
+import type { TranslationKey } from './i18n/translations';
 import { HomeScreen } from './components/HomeScreen';
 import { LobbyView } from './components/LobbyView';
 import { GameBoard } from './components/GameBoard';
+import { LanguageToggle } from './components/LanguageToggle';
 
 type Phase = { kind: 'home' } | { kind: 'connecting-existing' } | { kind: 'connected' };
 
@@ -17,6 +20,7 @@ async function resolveWsUrl(): Promise<string> {
 }
 
 export default function App() {
+  const { t } = useLanguage();
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>(() => (loadSession() ? { kind: 'connecting-existing' } : { kind: 'home' }));
   const [gameState, setGameState] = useState<RedactedGameState | null>(null);
@@ -26,41 +30,44 @@ export default function App() {
   useEffect(() => {
     resolveWsUrl()
       .then(setWsUrl)
-      .catch(() => setError('Could not reach the game server. Try reloading.'));
-  }, []);
+      .catch(() => setError(t('app.connectionError')));
+  }, [t]);
 
-  const handleMessage = useCallback((msg: ServerMessage) => {
-    switch (msg.type) {
-      case 'gameCreated': {
-        saveSession({ gameId: msg.gameId, playerId: msg.playerId, playerName: pendingNameRef.current ?? '' });
-        setError(null);
-        break;
+  const handleMessage = useCallback(
+    (msg: ServerMessage) => {
+      switch (msg.type) {
+        case 'gameCreated': {
+          saveSession({ gameId: msg.gameId, playerId: msg.playerId, playerName: pendingNameRef.current ?? '' });
+          setError(null);
+          break;
+        }
+        case 'joined': {
+          const existing = loadSession();
+          saveSession({ gameId: msg.gameId, playerId: msg.playerId, playerName: existing?.playerName ?? pendingNameRef.current ?? '' });
+          setError(null);
+          break;
+        }
+        case 'state': {
+          setGameState(msg.state);
+          setPhase({ kind: 'connected' });
+          setError(null);
+          break;
+        }
+        case 'error': {
+          setError(t(`error.${msg.code}` as TranslationKey, msg.params));
+          setPhase((prev) => {
+            if (prev.kind === 'connecting-existing') {
+              clearSession();
+              return { kind: 'home' };
+            }
+            return prev;
+          });
+          break;
+        }
       }
-      case 'joined': {
-        const existing = loadSession();
-        saveSession({ gameId: msg.gameId, playerId: msg.playerId, playerName: existing?.playerName ?? pendingNameRef.current ?? '' });
-        setError(null);
-        break;
-      }
-      case 'state': {
-        setGameState(msg.state);
-        setPhase({ kind: 'connected' });
-        setError(null);
-        break;
-      }
-      case 'error': {
-        setError(msg.message);
-        setPhase((prev) => {
-          if (prev.kind === 'connecting-existing') {
-            clearSession();
-            return { kind: 'home' };
-          }
-          return prev;
-        });
-        break;
-      }
-    }
-  }, []);
+    },
+    [t],
+  );
 
   const { status, send } = useWebSocket(wsUrl, handleMessage);
 
@@ -98,8 +105,11 @@ export default function App() {
   if (phase.kind === 'connecting-existing') {
     return (
       <div className="home">
-        <h1 className="home__title">Skip-Bo</h1>
-        <p className="waiting__hint">Reconnecting…</p>
+        <div className="home-lang-toggle">
+          <LanguageToggle />
+        </div>
+        <h1 className="home__title">{t('app.title')}</h1>
+        <p className="waiting__hint">{t('app.reconnecting')}</p>
       </div>
     );
   }

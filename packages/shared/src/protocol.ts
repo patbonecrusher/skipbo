@@ -1,4 +1,4 @@
-import type { PlaySource, RedactedGameState } from './types.js';
+import type { ErrorCode, PlaySource, RedactedGameState } from './types.js';
 
 // ---- Client -> Server ----
 
@@ -69,7 +69,8 @@ export interface StateMessage {
 
 export interface ErrorMessage {
   type: 'error';
-  message: string;
+  code: ErrorCode;
+  params?: Record<string, string | number>;
 }
 
 export type ServerMessage = GameCreatedMessage | JoinedMessage | StateMessage | ErrorMessage;

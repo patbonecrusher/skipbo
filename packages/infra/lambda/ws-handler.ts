@@ -1,7 +1,7 @@
 import { ApiGatewayManagementApiClient, PostToConnectionCommand, GoneException } from '@aws-sdk/client-apigatewaymanagementapi';
 import type { APIGatewayProxyResultV2, APIGatewayProxyWebsocketEventV2 } from 'aws-lambda';
 import { MAX_PLAYERS, MIN_PLAYERS, applyDiscard, applyPlay, dealGame, redactForPlayer } from '@skipbo/shared';
-import type { ClientMessage, RedactedGameState, ServerMessage } from '@skipbo/shared';
+import type { ClientMessage, ErrorCode, RedactedGameState, ServerMessage } from '@skipbo/shared';
 import {
   ConditionalCheckFailedException,
   GameRecord,
@@ -107,7 +107,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
   try {
     message = JSON.parse(body) as ClientMessage;
   } catch {
-    await send(connectionId, { type: 'error', message: 'Malformed message' });
+    await send(connectionId, { type: 'error', code: 'MALFORMED_MESSAGE' });
     return { statusCode: 200 };
   }
 
@@ -126,14 +126,14 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
 
       case 'joinGame': {
         const playerId = newPlayerId();
-        let failure: string | null = null;
+        let failure: ErrorCode | null = null;
         const record = await saveGameWithRetry(message.gameId, (rec) => {
           if (rec.status !== 'waiting-for-players') {
-            failure = 'That game has already started';
+            failure = 'GAME_ALREADY_STARTED';
             return rec;
           }
           if (rec.players.length >= MAX_PLAYERS) {
-            failure = 'That game is full';
+            failure = 'GAME_FULL';
             return rec;
           }
           return {
@@ -142,7 +142,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           };
         });
         if (failure) {
-          await send(connectionId, { type: 'error', message: failure });
+          await send(connectionId, { type: 'error', code: failure });
           return { statusCode: 200 };
         }
         await putConnection({ connectionId, gameId: record.gameId, playerId });
@@ -154,7 +154,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
       case 'rejoinGame': {
         const existing = await getGame(message.gameId);
         if (!existing || !existing.players.some((p) => p.id === message.playerId)) {
-          await send(connectionId, { type: 'error', message: 'Game not found for that player' });
+          await send(connectionId, { type: 'error', code: 'GAME_NOT_FOUND_FOR_PLAYER' });
           return { statusCode: 200 };
         }
         const record = await saveGameWithRetry(message.gameId, (rec) => {
@@ -178,21 +178,21 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
       case 'startGame': {
         const conn = await getConnection(connectionId);
         if (!conn) {
-          await send(connectionId, { type: 'error', message: 'Not connected to a game' });
+          await send(connectionId, { type: 'error', code: 'NOT_CONNECTED' });
           return { statusCode: 200 };
         }
-        let failure: string | null = null;
+        let failure: ErrorCode | null = null;
         const record = await saveGameWithRetry(conn.gameId, (rec) => {
           if (rec.hostId !== conn.playerId) {
-            failure = 'Only the host can start the game';
+            failure = 'NOT_HOST';
             return rec;
           }
           if (rec.status !== 'waiting-for-players') {
-            failure = 'Game already started';
+            failure = 'GAME_ALREADY_STARTED';
             return rec;
           }
           if (rec.players.length < MIN_PLAYERS) {
-            failure = `Need at least ${MIN_PLAYERS} players to start`;
+            failure = 'NOT_ENOUGH_PLAYERS';
             return rec;
           }
           const freshState = dealGame(
@@ -202,7 +202,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           return withState(rec, freshState);
         });
         if (failure) {
-          await send(connectionId, { type: 'error', message: failure });
+          await send(connectionId, { type: 'error', code: failure, params: failure === 'NOT_ENOUGH_PLAYERS' ? { min: MIN_PLAYERS } : undefined });
         } else {
           await broadcastState(record);
         }
@@ -213,13 +213,13 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
       case 'discardCard': {
         const conn = await getConnection(connectionId);
         if (!conn) {
-          await send(connectionId, { type: 'error', message: 'Not connected to a game' });
+          await send(connectionId, { type: 'error', code: 'NOT_CONNECTED' });
           return { statusCode: 200 };
         }
-        let failure: string | null = null;
+        let failure: ErrorCode | null = null;
         const record = await saveGameWithRetry(conn.gameId, (rec) => {
           if (!rec.stateJson) {
-            failure = 'Game has not started yet';
+            failure = 'GAME_NOT_STARTED';
             return rec;
           }
           const state = parseState(rec);
@@ -228,13 +228,13 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
               ? applyPlay(state, { type: 'play', playerId: conn.playerId, source: message.source, buildPileIndex: message.buildPileIndex })
               : applyDiscard(state, { type: 'discard', playerId: conn.playerId, cardId: message.cardId, pileIndex: message.pileIndex });
           if (!result.ok) {
-            failure = result.error ?? 'Invalid move';
+            failure = result.error ?? 'INVALID_MOVE';
             return rec;
           }
           return withState(rec, result.state);
         });
         if (failure) {
-          await send(connectionId, { type: 'error', message: failure });
+          await send(connectionId, { type: 'error', code: failure });
         } else {
           await broadcastState(record);
         }
@@ -244,13 +244,13 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
       case 'rematch': {
         const conn = await getConnection(connectionId);
         if (!conn) {
-          await send(connectionId, { type: 'error', message: 'Not connected to a game' });
+          await send(connectionId, { type: 'error', code: 'NOT_CONNECTED' });
           return { statusCode: 200 };
         }
-        let failure: string | null = null;
+        let failure: ErrorCode | null = null;
         const record = await saveGameWithRetry(conn.gameId, (rec) => {
           if (rec.status !== 'finished') {
-            failure = 'Game is not finished yet';
+            failure = 'GAME_NOT_FINISHED';
             return rec;
           }
           const freshState = dealGame(
@@ -260,7 +260,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           return withState(rec, freshState);
         });
         if (failure) {
-          await send(connectionId, { type: 'error', message: failure });
+          await send(connectionId, { type: 'error', code: failure });
         } else {
           await broadcastState(record);
         }
@@ -268,12 +268,12 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
       }
 
       default:
-        await send(connectionId, { type: 'error', message: 'Unknown action' });
+        await send(connectionId, { type: 'error', code: 'UNKNOWN_ACTION' });
         return { statusCode: 200 };
     }
   } catch (err) {
     console.error('Error handling message', err);
-    await send(connectionId, { type: 'error', message: 'Server error, please try again' });
+    await send(connectionId, { type: 'error', code: 'SERVER_ERROR' });
     return { statusCode: 200 };
   }
 }

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { SocketStatus } from '../useWebSocket';
+import { useLanguage } from '../i18n/context';
+import { LanguageToggle } from './LanguageToggle';
 
 interface HomeScreenProps {
   initialGameCode: string | null;
@@ -10,6 +12,7 @@ interface HomeScreenProps {
 }
 
 export function HomeScreen({ initialGameCode, status, error, onCreate, onJoin }: HomeScreenProps) {
+  const { t } = useLanguage();
   const [mode, setMode] = useState<'create' | 'join'>(initialGameCode ? 'join' : 'create');
   const [name, setName] = useState('');
   const [code, setCode] = useState(initialGameCode ?? '');
@@ -29,25 +32,28 @@ export function HomeScreen({ initialGameCode, status, error, onCreate, onJoin }:
 
   return (
     <div className="home">
-      <h1 className="home__title">Skip-Bo</h1>
+      <div className="home-lang-toggle">
+        <LanguageToggle />
+      </div>
+      <h1 className="home__title">{t('app.title')}</h1>
 
       <div className="home__tabs">
         <button type="button" className={mode === 'create' ? 'home__tab home__tab--active' : 'home__tab'} onClick={() => setMode('create')}>
-          Start a game
+          {t('home.tabCreate')}
         </button>
         <button type="button" className={mode === 'join' ? 'home__tab home__tab--active' : 'home__tab'} onClick={() => setMode('join')}>
-          Join a game
+          {t('home.tabJoin')}
         </button>
       </div>
 
       <form className="home__form" onSubmit={submit}>
         <label className="home__label">
-          Your name
+          {t('home.yourName')}
           <input
             className="home__input"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Mom"
+            placeholder={t('home.namePlaceholder')}
             maxLength={40}
             autoFocus
           />
@@ -55,22 +61,22 @@ export function HomeScreen({ initialGameCode, status, error, onCreate, onJoin }:
 
         {mode === 'join' && (
           <label className="home__label">
-            Room code
+            {t('home.roomCode')}
             <input
               className="home__input home__input--code"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="ABC123"
+              placeholder={t('home.codePlaceholder')}
               maxLength={6}
             />
           </label>
         )}
 
         <button type="submit" className="home__submit" disabled={!ready || !name.trim() || (mode === 'join' && !code.trim())}>
-          {mode === 'create' ? 'Create game' : 'Join game'}
+          {mode === 'create' ? t('home.createButton') : t('home.joinButton')}
         </button>
 
-        {!ready && <p className="home__hint">Connecting…</p>}
+        {!ready && <p className="home__hint">{t('home.connecting')}</p>}
         {error && <p className="home__error">{error}</p>}
       </form>
     </div>
