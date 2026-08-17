@@ -23,6 +23,7 @@ export interface PlayerState {
   id: string;
   name: string;
   connected: boolean;
+  isBot: boolean;
   stockPile: Card[]; // top of pile = last element
   hand: Card[];
   discardPiles: [Card[], Card[], Card[], Card[]];
@@ -114,6 +115,7 @@ export interface RedactedOpponent {
   id: string;
   name: string;
   connected: boolean;
+  isBot: boolean;
   playerIndex: number;
   stockPile: PileSummary;
   handCount: number;
@@ -124,6 +126,7 @@ export interface LobbyPlayer {
   id: string;
   name: string;
   connected: boolean;
+  isBot: boolean;
 }
 
 export interface LobbyGameState {

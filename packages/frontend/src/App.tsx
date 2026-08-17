@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { RedactedGameState, ServerMessage } from '@skipbo/shared';
+import type { ClientMessage, RedactedGameState, ServerMessage } from '@skipbo/shared';
 import { useWebSocket } from './useWebSocket';
 import { clearSession, loadSession, saveSession } from './session';
 import { useLanguage } from './i18n/context';
@@ -26,6 +26,10 @@ export default function App() {
   const [gameState, setGameState] = useState<RedactedGameState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pendingNameRef = useRef<string | null>(null);
+  const pendingSoloRef = useRef(false);
+  // handleMessage needs to send follow-up messages, but useWebSocket (which produces `send`)
+  // takes handleMessage as an argument -- a ref breaks that circular dependency.
+  const sendRef = useRef<(message: ClientMessage) => void>(() => {});
 
   useEffect(() => {
     resolveWsUrl()
@@ -39,6 +43,9 @@ export default function App() {
         case 'gameCreated': {
           saveSession({ gameId: msg.gameId, playerId: msg.playerId, playerName: pendingNameRef.current ?? '' });
           setError(null);
+          if (pendingSoloRef.current) {
+            sendRef.current({ action: 'addBot' });
+          }
           break;
         }
         case 'joined': {
@@ -51,6 +58,10 @@ export default function App() {
           setGameState(msg.state);
           setPhase({ kind: 'connected' });
           setError(null);
+          if (pendingSoloRef.current && msg.state.status === 'waiting-for-players' && msg.state.players.length >= 2) {
+            pendingSoloRef.current = false;
+            sendRef.current({ action: 'startGame' });
+          }
           break;
         }
         case 'error': {
@@ -70,6 +81,7 @@ export default function App() {
   );
 
   const { status, send } = useWebSocket(wsUrl, handleMessage);
+  sendRef.current = send;
 
   useEffect(() => {
     if (status !== 'open') return;
@@ -91,6 +103,15 @@ export default function App() {
     (gameId: string, name: string) => {
       pendingNameRef.current = name;
       send({ action: 'joinGame', gameId, playerName: name });
+    },
+    [send],
+  );
+
+  const handlePlaySolo = useCallback(
+    (name: string) => {
+      pendingNameRef.current = name;
+      pendingSoloRef.current = true;
+      send({ action: 'createGame', playerName: name });
     },
     [send],
   );
@@ -127,5 +148,14 @@ export default function App() {
   }
 
   const initialGameCode = new URLSearchParams(window.location.search).get('game');
-  return <HomeScreen initialGameCode={initialGameCode} status={status} error={error} onCreate={handleCreate} onJoin={handleJoin} />;
+  return (
+    <HomeScreen
+      initialGameCode={initialGameCode}
+      status={status}
+      error={error}
+      onCreate={handleCreate}
+      onJoin={handleJoin}
+      onPlaySolo={handlePlaySolo}
+    />
+  );
 }

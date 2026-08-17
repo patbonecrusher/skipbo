@@ -522,6 +522,33 @@ button {
   cursor: default;
 }
 
+.home__solo {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.home__solo:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.lobby__add-bot {
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.35);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .home__hint {
   color: var(--muted);
   font-size: 0.85rem;

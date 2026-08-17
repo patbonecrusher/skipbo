@@ -9,9 +9,10 @@ interface HomeScreenProps {
   error: string | null;
   onCreate: (name: string) => void;
   onJoin: (gameId: string, name: string) => void;
+  onPlaySolo: (name: string) => void;
 }
 
-export function HomeScreen({ initialGameCode, status, error, onCreate, onJoin }: HomeScreenProps) {
+export function HomeScreen({ initialGameCode, status, error, onCreate, onJoin, onPlaySolo }: HomeScreenProps) {
   const { t } = useLanguage();
   const [mode, setMode] = useState<'create' | 'join'>(initialGameCode ? 'join' : 'create');
   const [name, setName] = useState('');
@@ -75,6 +76,17 @@ export function HomeScreen({ initialGameCode, status, error, onCreate, onJoin }:
         <button type="submit" className="home__submit" disabled={!ready || !name.trim() || (mode === 'join' && !code.trim())}>
           {mode === 'create' ? t('home.createButton') : t('home.joinButton')}
         </button>
+
+        {mode === 'create' && (
+          <button
+            type="button"
+            className="home__solo"
+            disabled={!ready || !name.trim()}
+            onClick={() => onPlaySolo(name.trim())}
+          >
+            {t('home.playSolo')}
+          </button>
+        )}
 
         {!ready && <p className="home__hint">{t('home.connecting')}</p>}
         {error && <p className="home__error">{error}</p>}

@@ -14,6 +14,7 @@ export function OpponentPanel({ opponent, isTheirTurn }: OpponentPanelProps) {
     <div className={`opponent-panel${isTheirTurn ? ' opponent-panel--active' : ''}`}>
       <div className="board__player-label">
         <span className={`board__dot ${opponent.connected ? 'board__dot--on' : 'board__dot--off'}`} />
+        {opponent.isBot && '🤖 '}
         {opponent.name}
       </div>
       <div className="board__piles board__piles--compact">

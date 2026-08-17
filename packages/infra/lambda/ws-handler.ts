@@ -1,6 +1,6 @@
 import { ApiGatewayManagementApiClient, PostToConnectionCommand, GoneException } from '@aws-sdk/client-apigatewaymanagementapi';
 import type { APIGatewayProxyResultV2, APIGatewayProxyWebsocketEventV2 } from 'aws-lambda';
-import { MAX_PLAYERS, MIN_PLAYERS, applyDiscard, applyPlay, dealGame, redactForPlayer } from '@skipbo/shared';
+import { MAX_PLAYERS, MIN_PLAYERS, applyDiscard, applyPlay, chooseBotAction, dealGame, redactForPlayer } from '@skipbo/shared';
 import type { ClientMessage, ErrorCode, RedactedGameState, ServerMessage } from '@skipbo/shared';
 import {
   ConditionalCheckFailedException,
@@ -40,12 +40,43 @@ function redactedForPlayer(record: GameRecord, playerId: string): RedactedGameSt
       status: 'waiting-for-players',
       youIndex,
       isHost: record.hostId === playerId,
-      players: record.players.map((p) => ({ id: p.id, name: p.name, connected: p.connectionId !== null })),
+      players: record.players.map((p) => ({ id: p.id, name: p.name, connected: p.isBot || p.connectionId !== null, isBot: p.isBot })),
       minPlayers: MIN_PLAYERS,
       maxPlayers: MAX_PLAYERS,
     };
   }
   return redactForPlayer(parseState(record), playerId);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const BOT_MOVE_DELAY_MS = 650;
+const MAX_BOT_STEPS = 300; // safety backstop against any bug that could otherwise loop forever
+
+/** After a human action (or game start) may have handed the turn to a bot, play out bot
+ * turns one move at a time, broadcasting and pausing between each so it's watchable, until
+ * a human's turn comes up again or the game ends. */
+async function runBotTurns(gameId: string): Promise<void> {
+  for (let step = 0; step < MAX_BOT_STEPS; step++) {
+    let tookBotStep = false;
+    const record = await saveGameWithRetry(gameId, (rec) => {
+      if (!rec.stateJson || rec.status !== 'in-progress') return rec;
+      const state = parseState(rec);
+      const activePlayer = state.players[state.currentPlayerIndex];
+      if (!activePlayer.isBot) return rec;
+      tookBotStep = true;
+      const action = chooseBotAction(state, activePlayer.id);
+      const result = action.type === 'play' ? applyPlay(state, action) : applyDiscard(state, action);
+      if (!result.ok) return rec; // shouldn't happen; avoid looping on a bad state
+      return withState(rec, result.state);
+    });
+    if (!tookBotStep) return;
+    await broadcastState(record);
+    if (record.status !== 'in-progress') return;
+    await sleep(BOT_MOVE_DELAY_MS);
+  }
 }
 
 async function broadcastState(record: GameRecord): Promise<void> {
@@ -138,7 +169,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           }
           return {
             ...rec,
-            players: [...rec.players, { id: playerId, name: message.playerName.slice(0, 40), connectionId }],
+            players: [...rec.players, { id: playerId, name: message.playerName.slice(0, 40), connectionId, isBot: false }],
           };
         });
         if (failure) {
@@ -148,6 +179,40 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
         await putConnection({ connectionId, gameId: record.gameId, playerId });
         await send(connectionId, { type: 'joined', gameId: record.gameId, playerId });
         await broadcastState(record);
+        return { statusCode: 200 };
+      }
+
+      case 'addBot': {
+        const conn = await getConnection(connectionId);
+        if (!conn) {
+          await send(connectionId, { type: 'error', code: 'NOT_CONNECTED' });
+          return { statusCode: 200 };
+        }
+        let failure: ErrorCode | null = null;
+        const record = await saveGameWithRetry(conn.gameId, (rec) => {
+          if (rec.hostId !== conn.playerId) {
+            failure = 'NOT_HOST';
+            return rec;
+          }
+          if (rec.status !== 'waiting-for-players') {
+            failure = 'GAME_ALREADY_STARTED';
+            return rec;
+          }
+          if (rec.players.length >= MAX_PLAYERS) {
+            failure = 'GAME_FULL';
+            return rec;
+          }
+          const botNumber = rec.players.filter((p) => p.isBot).length + 1;
+          return {
+            ...rec,
+            players: [...rec.players, { id: newPlayerId(), name: `Robot ${botNumber}`, connectionId: null, isBot: true }],
+          };
+        });
+        if (failure) {
+          await send(connectionId, { type: 'error', code: failure });
+        } else {
+          await broadcastState(record);
+        }
         return { statusCode: 200 };
       }
 
@@ -197,7 +262,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           }
           const freshState = dealGame(
             rec.gameId,
-            rec.players.map((p) => ({ id: p.id, name: p.name })),
+            rec.players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
           );
           return withState(rec, freshState);
         });
@@ -205,6 +270,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           await send(connectionId, { type: 'error', code: failure, params: failure === 'NOT_ENOUGH_PLAYERS' ? { min: MIN_PLAYERS } : undefined });
         } else {
           await broadcastState(record);
+          await runBotTurns(record.gameId);
         }
         return { statusCode: 200 };
       }
@@ -237,6 +303,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           await send(connectionId, { type: 'error', code: failure });
         } else {
           await broadcastState(record);
+          await runBotTurns(record.gameId);
         }
         return { statusCode: 200 };
       }
@@ -255,7 +322,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           }
           const freshState = dealGame(
             rec.gameId,
-            rec.players.map((p) => ({ id: p.id, name: p.name })),
+            rec.players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
           );
           return withState(rec, freshState);
         });
@@ -263,6 +330,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           await send(connectionId, { type: 'error', code: failure });
         } else {
           await broadcastState(record);
+          await runBotTurns(record.gameId);
         }
         return { statusCode: 200 };
       }

@@ -18,6 +18,7 @@ import {
 export interface NewPlayer {
   id: string;
   name: string;
+  isBot?: boolean;
 }
 
 export function dealGame(gameId: string, players: NewPlayer[]): GameState {
@@ -35,6 +36,7 @@ export function dealGame(gameId: string, players: NewPlayer[]): GameState {
     id: p.id,
     name: p.name,
     connected: true,
+    isBot: p.isBot ?? false,
     stockPile: take(stockSize),
     hand: [],
     discardPiles: [[], [], [], []],
@@ -196,6 +198,7 @@ export function redactForPlayer(state: GameState, forPlayerId: string): Redacted
       id: p.id,
       name: p.name,
       connected: p.connected,
+      isBot: p.isBot,
       playerIndex,
       stockPile: summarize(p.stockPile),
       handCount: p.hand.length,

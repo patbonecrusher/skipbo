@@ -41,7 +41,9 @@ export class SkipboStack extends Stack {
       entry: path.join(__dirname, '../lambda/ws-handler.ts'),
       runtime: Runtime.NODEJS_20_X,
       memorySize: 256,
-      timeout: Duration.seconds(10),
+      // Bot turns are played out and broadcast one move at a time inside a single invocation
+      // (see runBotTurns); 28s stays under API Gateway's WebSocket integration timeout ceiling.
+      timeout: Duration.seconds(28),
       environment: {
         GAMES_TABLE: gamesTable.tableName,
         CONNECTIONS_TABLE: connectionsTable.tableName,

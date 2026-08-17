@@ -15,6 +15,7 @@ function baseState(overrides: Partial<GameState> = {}): GameState {
         id: 'p1',
         name: 'Alice',
         connected: true,
+        isBot: false,
         stockPile: [card('s1', 5)],
         hand: [card('h1', 1)],
         discardPiles: [[], [], [], []],
@@ -23,6 +24,7 @@ function baseState(overrides: Partial<GameState> = {}): GameState {
         id: 'p2',
         name: 'Bob',
         connected: true,
+        isBot: false,
         stockPile: [card('s2', 7)],
         hand: [card('h2', 2)],
         discardPiles: [[], [], [], []],
@@ -194,9 +196,12 @@ describe('applyDiscard', () => {
   it('wraps turn order around from the last player back to the first', () => {
     const state = baseState({
       players: [
-        { id: 'p1', name: 'A', connected: true, stockPile: [], hand: [card('h1', 1)], discardPiles: [[], [], [], []] },
-        { id: 'p2', name: 'B', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
-        { id: 'p3', name: 'C', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p1', name: 'A', connected: true,
+        isBot: false, stockPile: [], hand: [card('h1', 1)], discardPiles: [[], [], [], []] },
+        { id: 'p2', name: 'B', connected: true,
+        isBot: false, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p3', name: 'C', connected: true,
+        isBot: false, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
       ],
       currentPlayerIndex: 0,
     });
@@ -232,10 +237,14 @@ describe('redactForPlayer', () => {
   it('lists opponents starting with the next player after you, wrapping around', () => {
     const state = baseState({
       players: [
-        { id: 'p1', name: 'A', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
-        { id: 'p2', name: 'B', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
-        { id: 'p3', name: 'C', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
-        { id: 'p4', name: 'D', connected: true, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p1', name: 'A', connected: true,
+        isBot: false, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p2', name: 'B', connected: true,
+        isBot: false, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p3', name: 'C', connected: true,
+        isBot: false, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p4', name: 'D', connected: true,
+        isBot: false, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
       ],
     });
     const view = redactForPlayer(state, 'p3') as ActiveGameState;

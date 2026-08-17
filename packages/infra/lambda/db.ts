@@ -13,6 +13,7 @@ export interface GamePlayer {
   id: string;
   name: string;
   connectionId: string | null;
+  isBot: boolean;
 }
 
 export interface GameRecord {
@@ -48,7 +49,7 @@ export async function createPendingGame(hostId: string, hostName: string): Promi
       gameId,
       status: 'waiting-for-players',
       hostId,
-      players: [{ id: hostId, name: hostName, connectionId: null }],
+      players: [{ id: hostId, name: hostName, connectionId: null, isBot: false }],
       stateJson: null,
       version: 0,
       createdAt: now,

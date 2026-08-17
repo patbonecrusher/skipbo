@@ -43,6 +43,7 @@ export function LobbyView({ state, send, onLeave }: LobbyViewProps) {
         {state.players.map((p, i) => (
           <li key={p.id} className="lobby__player">
             <span className={`board__dot ${p.connected ? 'board__dot--on' : 'board__dot--off'}`} />
+            {p.isBot && '🤖 '}
             {p.name}
             {i === state.youIndex && ` ${t('lobby.you')}`}
           </li>
@@ -56,6 +57,11 @@ export function LobbyView({ state, send, onLeave }: LobbyViewProps) {
           </button>
           {state.players.length >= state.minPlayers && (
             <p className="waiting__hint">{t('lobby.canStartOrWait', { count: state.players.length, max: state.maxPlayers })}</p>
+          )}
+          {state.players.length < state.maxPlayers && (
+            <button type="button" className="lobby__add-bot" onClick={() => send({ action: 'addBot' })}>
+              {t('lobby.addBot')}
+            </button>
           )}
         </>
       ) : (

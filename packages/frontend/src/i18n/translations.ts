@@ -13,6 +13,7 @@ export const translations = {
     'home.createButton': 'Create game',
     'home.joinButton': 'Join game',
     'home.connecting': 'Connecting…',
+    'home.playSolo': 'Play solo vs. computer',
 
     'lobby.shareText': 'Share this with the other players:',
     'lobby.copyLink': 'Copy invite link',
@@ -23,6 +24,7 @@ export const translations = {
     'lobby.canStartOrWait': 'You can keep waiting for more players ({count}/{max}), or start now.',
     'lobby.waitingForHost': 'Waiting for the host to start the game…',
     'lobby.cancel': 'Cancel',
+    'lobby.addBot': '+ Add a computer player',
 
     'board.room': 'Room {code}',
     'board.youWon': 'You won! 🎉',
@@ -76,6 +78,7 @@ export const translations = {
     'home.createButton': 'Créer la partie',
     'home.joinButton': 'Rejoindre la partie',
     'home.connecting': 'Connexion en cours…',
+    'home.playSolo': "Jouer seul contre l'ordinateur",
 
     'lobby.shareText': 'Partagez ceci avec les autres joueurs :',
     'lobby.copyLink': "Copier le lien d'invitation",
@@ -86,6 +89,7 @@ export const translations = {
     'lobby.canStartOrWait': "Vous pouvez attendre d'autres joueurs ({count}/{max}), ou démarrer maintenant.",
     'lobby.waitingForHost': "En attente que l'hôte démarre la partie…",
     'lobby.cancel': 'Annuler',
+    'lobby.addBot': '+ Ajouter un joueur virtuel',
 
     'board.room': 'Partie {code}',
     'board.youWon': 'Vous avez gagné ! 🎉',

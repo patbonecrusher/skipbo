@@ -23,6 +23,10 @@ export interface StartGameMessage {
   action: 'startGame';
 }
 
+export interface AddBotMessage {
+  action: 'addBot';
+}
+
 export interface PlayCardMessage {
   action: 'playCard';
   source: PlaySource;
@@ -44,6 +48,7 @@ export type ClientMessage =
   | JoinGameMessage
   | RejoinGameMessage
   | StartGameMessage
+  | AddBotMessage
   | PlayCardMessage
   | DiscardCardMessage
   | RematchMessage;
