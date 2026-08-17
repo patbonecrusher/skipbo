@@ -21,10 +21,13 @@ interface CardProps {
   selected?: boolean;
   dimmed?: boolean;
   interactive?: boolean;
+  holding?: boolean;
+  /** For a SKIPBO card sitting on top of a build pile, the number it's currently standing in for. */
+  effectiveValue?: number;
   onClick?: () => void;
 }
 
-export function Card({ card, emptyLabel, selected, dimmed, interactive, onClick }: CardProps) {
+export function Card({ card, emptyLabel, selected, dimmed, interactive, holding, effectiveValue, onClick }: CardProps) {
   if (!card) {
     return (
       <div className={`card card--empty${interactive ? ' card--interactive' : ''}`} onClick={interactive ? onClick : undefined}>
@@ -45,6 +48,7 @@ export function Card({ card, emptyLabel, selected, dimmed, interactive, onClick 
         selected ? 'card--selected' : '',
         dimmed ? 'card--dimmed' : '',
         interactive ? 'card--interactive' : '',
+        holding ? 'card--holding' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -52,7 +56,16 @@ export function Card({ card, emptyLabel, selected, dimmed, interactive, onClick 
       disabled={!interactive}
       onClick={onClick}
     >
-      {isWild ? 'SB' : card.value}
+      {isWild && effectiveValue ? (
+        <>
+          <span className="card__main-value">{effectiveValue}</span>
+          <span className="card__wild-badge">SB</span>
+        </>
+      ) : isWild ? (
+        'SB'
+      ) : (
+        card.value
+      )}
     </button>
   );
 }

@@ -51,12 +51,9 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
   }
 
   function handleDiscardPileClick(pileIndex: 0 | 1 | 2 | 3) {
+    // A quick tap always selects this pile's top card as a new source (never discards),
+    // so changing your mind about a selection can never accidentally fire a discard.
     if (!isYourTurn) return;
-    if (selected?.kind === 'hand') {
-      send({ action: 'discardCard', cardId: selected.cardId, pileIndex });
-      setSelected(null);
-      return;
-    }
     if (selected?.kind === 'discard' && selected.pileIndex === pileIndex) {
       setSelected(null);
       return;
@@ -64,6 +61,12 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
     if (state.you.discardPiles[pileIndex].topCard) {
       setSelected({ kind: 'discard', pileIndex });
     }
+  }
+
+  function handleDiscardLongPress(pileIndex: 0 | 1 | 2 | 3) {
+    if (!isYourTurn || selected?.kind !== 'hand') return;
+    send({ action: 'discardCard', cardId: selected.cardId, pileIndex });
+    setSelected(null);
   }
 
   function handleBuildPileClick(index: 0 | 1 | 2 | 3) {
@@ -103,6 +106,7 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
             label={`${i + 1}`}
             interactive={buildPilesPlayable}
             dimmed={buildPilesPlayable && selectedCard ? !canPlayOnPile(selectedCard.value, pile) : false}
+            effectiveValue={pile.count}
             onClick={() => handleBuildPileClick(i as 0 | 1 | 2 | 3)}
           />
         ))}
@@ -129,6 +133,8 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
               selected={selected?.kind === 'discard' && selected.pileIndex === i}
               interactive={isYourTurn && (selected?.kind === 'hand' || !!pile.topCard)}
               onClick={() => handleDiscardPileClick(i as 0 | 1 | 2 | 3)}
+              onLongPress={selected?.kind === 'hand' ? () => handleDiscardLongPress(i as 0 | 1 | 2 | 3) : undefined}
+              longPressHint={selected?.kind === 'hand' ? 'hold to discard' : undefined}
             />
           ))}
         </div>
@@ -145,6 +151,10 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
           />
         ))}
       </section>
+
+      {isYourTurn && selected?.kind === 'hand' && (
+        <p className="board__hint">Tap a build pile to play this card, or hold a discard pile below to end your turn there.</p>
+      )}
 
       {gameOver && (
         <div className="board__overlay">
