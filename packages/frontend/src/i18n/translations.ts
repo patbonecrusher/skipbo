@@ -42,6 +42,7 @@ export const translations = {
     'board.backToHome': 'Back to home',
     'board.handCount': '{count} cards in hand',
     'board.someone': 'Someone',
+    'board.yourTurnBanner': 'Your turn!',
 
     'error.GAME_NOT_IN_PROGRESS': 'This game is not in progress.',
     'error.UNKNOWN_PLAYER': "You're not part of this game.",
@@ -107,6 +108,7 @@ export const translations = {
     'board.backToHome': "Retour à l'accueil",
     'board.handCount': '{count} cartes en main',
     'board.someone': 'Quelqu’un',
+    'board.yourTurnBanner': 'À vous de jouer !',
 
     'error.GAME_NOT_IN_PROGRESS': "Cette partie n'est pas en cours.",
     'error.UNKNOWN_PLAYER': 'Vous ne faites pas partie de cette partie.',

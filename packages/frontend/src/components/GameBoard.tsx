@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ActiveGameState, ClientMessage, PileSummary, PlaySource } from '@skipbo/shared';
 import { Card } from './Card';
 import { PileStack } from './PileStack';
 import { OpponentPanel } from './OpponentPanel';
 import { LanguageToggle } from './LanguageToggle';
+import { TurnBanner } from './TurnBanner';
 import { useLanguage } from '../i18n/context';
 
 type Selection = { kind: 'hand'; cardId: string } | { kind: 'stock' } | { kind: 'discard'; pileIndex: 0 | 1 | 2 | 3 };
@@ -27,6 +28,13 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
   const youWon = gameOver && state.winnerId === state.you.id;
   const winnerName = gameOver && !youWon ? state.opponents.find((o) => o.id === state.winnerId)?.name ?? t('board.someone') : null;
   const activePlayerName = state.opponents.find((o) => o.playerIndex === state.currentPlayerIndex)?.name ?? null;
+
+  const [showTurnBanner, setShowTurnBanner] = useState(false);
+  const wasYourTurnRef = useRef(false);
+  useEffect(() => {
+    if (isYourTurn && !wasYourTurnRef.current) setShowTurnBanner(true);
+    wasYourTurnRef.current = isYourTurn;
+  }, [isYourTurn]);
 
   const selectedCard =
     selected?.kind === 'hand'
@@ -164,6 +172,8 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
       </section>
 
       {isYourTurn && selected?.kind === 'hand' && <p className="board__hint">{t('board.hint')}</p>}
+
+      {showTurnBanner && <TurnBanner text={t('board.yourTurnBanner')} onDone={() => setShowTurnBanner(false)} />}
 
       {gameOver && (
         <div className="board__overlay">
