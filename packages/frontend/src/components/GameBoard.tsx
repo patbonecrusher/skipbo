@@ -66,7 +66,7 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
     }
   }
 
-  function handleDiscardLongPress(pileIndex: 0 | 1 | 2 | 3) {
+  function handleDiscardHere(pileIndex: 0 | 1 | 2 | 3) {
     if (!isYourTurn || selected?.kind !== 'hand') return;
     send({ action: 'discardCard', cardId: selected.cardId, pileIndex });
     setSelected(null);
@@ -140,8 +140,8 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
                 selected={selected?.kind === 'discard' && selected.pileIndex === i}
                 interactive={isYourTurn && (selected?.kind === 'hand' || !!pile.topCard)}
                 onClick={() => handleDiscardPileClick(i as 0 | 1 | 2 | 3)}
-                onLongPress={selected?.kind === 'hand' ? () => handleDiscardLongPress(i as 0 | 1 | 2 | 3) : undefined}
-                longPressHint={selected?.kind === 'hand' ? t('board.holdToDiscard') : undefined}
+                onDiscardHere={selected?.kind === 'hand' ? () => handleDiscardHere(i as 0 | 1 | 2 | 3) : undefined}
+                discardHereLabel={t('board.discardHere')}
               />
             ))}
           </div>

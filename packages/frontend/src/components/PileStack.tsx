@@ -1,8 +1,5 @@
-import { useRef, useState } from 'react';
 import type { PileSummary } from '@skipbo/shared';
 import { Card } from './Card';
-
-const LONG_PRESS_MS = 450;
 
 interface PileStackProps {
   pile: PileSummary;
@@ -11,59 +8,16 @@ interface PileStackProps {
   dimmed?: boolean;
   interactive?: boolean;
   onClick?: () => void;
-  /** If provided, a quick tap always calls onClick (select-as-source); holding the pile down instead fires this. */
-  onLongPress?: () => void;
-  longPressHint?: string;
+  /** If provided, a small "discard here" button is overlaid on the pile (separate tap target from the card itself). */
+  onDiscardHere?: () => void;
+  discardHereLabel?: string;
   /** For a SKIPBO card on top of this pile, the number it's currently standing in for (build piles only). */
   effectiveValue?: number;
 }
 
-export function PileStack({ pile, label, selected, dimmed, interactive, onClick, onLongPress, longPressHint, effectiveValue }: PileStackProps) {
-  const timerRef = useRef<number | null>(null);
-  const longPressFired = useRef(false);
-  const [holding, setHolding] = useState(false);
-
-  function clearTimer() {
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }
-
-  function handlePointerDown() {
-    if (!interactive || !onLongPress) return;
-    longPressFired.current = false;
-    setHolding(true);
-    timerRef.current = window.setTimeout(() => {
-      longPressFired.current = true;
-      setHolding(false);
-      onLongPress();
-    }, LONG_PRESS_MS);
-  }
-
-  function handlePointerUp() {
-    clearTimer();
-    setHolding(false);
-  }
-
-  function handleClick() {
-    if (longPressFired.current) {
-      // The long-press already fired the discard action; swallow the click that follows pointer-up.
-      longPressFired.current = false;
-      return;
-    }
-    onClick?.();
-  }
-
+export function PileStack({ pile, label, selected, dimmed, interactive, onClick, onDiscardHere, discardHereLabel, effectiveValue }: PileStackProps) {
   return (
-    <div
-      className="pile-stack"
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-      onContextMenu={(e) => onLongPress && e.preventDefault()}
-    >
+    <div className="pile-stack">
       <div className="pile-stack__card-wrap">
         <Card
           card={pile.topCard}
@@ -71,14 +25,17 @@ export function PileStack({ pile, label, selected, dimmed, interactive, onClick,
           selected={selected}
           dimmed={dimmed}
           interactive={interactive}
-          holding={holding}
           effectiveValue={effectiveValue}
-          onClick={handleClick}
+          onClick={onClick}
         />
         {pile.count > 0 && <span className="pile-stack__count">{pile.count}</span>}
+        {onDiscardHere && (
+          <button type="button" className="pile-stack__discard-badge" title={discardHereLabel} aria-label={discardHereLabel} onClick={onDiscardHere}>
+            ↓
+          </button>
+        )}
       </div>
       <span className="pile-stack__label">{label}</span>
-      {onLongPress && longPressHint && <span className="pile-stack__hint">{longPressHint}</span>}
     </div>
   );
 }

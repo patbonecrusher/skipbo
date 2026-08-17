@@ -7,13 +7,12 @@ interface CardProps {
   selected?: boolean;
   dimmed?: boolean;
   interactive?: boolean;
-  holding?: boolean;
   /** For a SKIPBO card sitting on top of a build pile, the number it's currently standing in for. */
   effectiveValue?: number;
   onClick?: () => void;
 }
 
-export function Card({ card, emptyLabel, selected, dimmed, interactive, holding, effectiveValue, onClick }: CardProps) {
+export function Card({ card, emptyLabel, selected, dimmed, interactive, effectiveValue, onClick }: CardProps) {
   if (!card) {
     return (
       <div className={`card card--empty${interactive ? ' card--interactive' : ''}`} onClick={interactive ? onClick : undefined}>
@@ -32,7 +31,6 @@ export function Card({ card, emptyLabel, selected, dimmed, interactive, holding,
         selected ? 'card--selected' : '',
         dimmed ? 'card--dimmed' : '',
         interactive ? 'card--interactive' : '',
-        holding ? 'card--holding' : '',
       ]
         .filter(Boolean)
         .join(' ')}

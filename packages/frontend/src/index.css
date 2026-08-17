@@ -113,12 +113,6 @@ button {
   opacity: 0.35;
 }
 
-.card--holding {
-  transform: scale(1.1) translateY(-6px);
-  box-shadow: 0 0 0 3px var(--danger), 0 4px 14px rgba(0, 0, 0, 0.5);
-  transition: transform 0.4s ease, box-shadow 0.4s ease;
-}
-
 .card:disabled {
   cursor: default;
 }
@@ -164,10 +158,40 @@ button {
   letter-spacing: 0.04em;
 }
 
-.pile-stack__hint {
-  font-size: 0.6rem;
-  color: var(--danger);
-  font-weight: 600;
+.pile-stack__discard-badge {
+  position: absolute;
+  bottom: -8px;
+  left: -8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: white;
+  border: 2px solid var(--felt);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  animation: discard-badge-pop 0.15s ease;
+}
+
+.pile-stack__discard-badge:active {
+  transform: scale(0.92);
+}
+
+@keyframes discard-badge-pop {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* ---- Board layout ---- */
