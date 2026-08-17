@@ -247,7 +247,24 @@ button {
 
 .board__piles--compact {
   gap: clamp(4px, 1vw, 10px);
-  --card-w: clamp(36px, 6vw, 56px);
+}
+
+.board__discard-fan {
+  display: flex;
+}
+
+.board__discard-fan .pile-stack:not(:first-child) {
+  margin-left: calc(var(--card-w) * -0.58);
+}
+
+/* Keep each fanned pile's count badge above the card stacked on top of it. */
+.board__discard-fan .pile-stack {
+  position: relative;
+}
+
+.board__discard-fan .pile-stack:hover,
+.board__discard-fan .pile-stack:focus-within {
+  z-index: 1;
 }
 
 .board__opponents {

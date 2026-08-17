@@ -10,8 +10,8 @@ import c9 from './assets/cards/9.png';
 import c10 from './assets/cards/10.png';
 import c11 from './assets/cards/11.png';
 import c12 from './assets/cards/12.png';
-import cSkipbo from './assets/cards/skipbo.png';
-import cBack from './assets/cards/back.png';
+import cSkipboWild from './assets/cards/skipbo-wild.png';
+import cSkipboLogo from './assets/cards/skipbo-logo.png';
 
 export const CARD_FACES: Record<number | 'SKIPBO', string> = {
   1: c1,
@@ -26,7 +26,7 @@ export const CARD_FACES: Record<number | 'SKIPBO', string> = {
   10: c10,
   11: c11,
   12: c12,
-  SKIPBO: cSkipbo,
+  SKIPBO: cSkipboWild,
 };
 
-export const CARD_BACK = cBack;
+export const CARD_BACK = cSkipboLogo;

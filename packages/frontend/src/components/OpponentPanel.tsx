@@ -21,9 +21,11 @@ export function OpponentPanel({ opponent, isTheirTurn }: OpponentPanelProps) {
             <img key={i} src={CARD_BACK} className="board__hand-back" alt="" draggable={false} />
           ))}
         </div>
-        {opponent.discardPiles.map((pile, i) => (
-          <PileStack key={i} pile={pile} label={`D${i + 1}`} />
-        ))}
+        <div className="board__discard-fan">
+          {opponent.discardPiles.map((pile, i) => (
+            <PileStack key={i} pile={pile} label={`D${i + 1}`} showLabel={false} />
+          ))}
+        </div>
       </div>
     </div>
   );

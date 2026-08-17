@@ -7,6 +7,8 @@ const LONG_PRESS_MS = 450;
 interface PileStackProps {
   pile: PileSummary;
   label: string;
+  /** Set false to hide the text label -- useful when piles are fanned/overlapping and per-pile labels would collide. */
+  showLabel?: boolean;
   selected?: boolean;
   dimmed?: boolean;
   interactive?: boolean;
@@ -18,7 +20,18 @@ interface PileStackProps {
   effectiveValue?: number;
 }
 
-export function PileStack({ pile, label, selected, dimmed, interactive, onClick, onLongPress, longPressHint, effectiveValue }: PileStackProps) {
+export function PileStack({
+  pile,
+  label,
+  showLabel = true,
+  selected,
+  dimmed,
+  interactive,
+  onClick,
+  onLongPress,
+  longPressHint,
+  effectiveValue,
+}: PileStackProps) {
   const timerRef = useRef<number | null>(null);
   const longPressFired = useRef(false);
   const [holding, setHolding] = useState(false);
@@ -67,7 +80,7 @@ export function PileStack({ pile, label, selected, dimmed, interactive, onClick,
       <div className="pile-stack__card-wrap">
         <Card
           card={pile.topCard}
-          emptyLabel={label}
+          emptyLabel={showLabel ? label : undefined}
           selected={selected}
           dimmed={dimmed}
           interactive={interactive}
@@ -77,7 +90,7 @@ export function PileStack({ pile, label, selected, dimmed, interactive, onClick,
         />
         {pile.count > 0 && <span className="pile-stack__count">{pile.count}</span>}
       </div>
-      <span className="pile-stack__label">{label}</span>
+      {showLabel && <span className="pile-stack__label">{label}</span>}
       {onLongPress && longPressHint && <span className="pile-stack__hint">{longPressHint}</span>}
     </div>
   );
