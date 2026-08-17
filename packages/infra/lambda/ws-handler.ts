@@ -52,7 +52,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const BOT_MOVE_DELAY_MS = 650;
+const BOT_MOVE_DELAY_MS = 1400;
 const MAX_AUTO_STEPS = 300; // safety backstop against any bug that could otherwise loop forever
 
 async function broadcastState(record: GameRecord): Promise<void> {
