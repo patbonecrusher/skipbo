@@ -1,7 +1,7 @@
 import { ApiGatewayManagementApiClient, PostToConnectionCommand, GoneException } from '@aws-sdk/client-apigatewaymanagementapi';
 import type { APIGatewayProxyResultV2, APIGatewayProxyWebsocketEventV2 } from 'aws-lambda';
-import { MAX_PLAYERS, MIN_PLAYERS, applyDiscard, applyPlay, chooseBotAction, dealGame, redactForPlayer } from '@skipbo/shared';
-import type { ClientMessage, ErrorCode, RedactedGameState, ServerMessage } from '@skipbo/shared';
+import { MAX_PLAYERS, MIN_PLAYERS, applyDiscard, applyPlay, chooseBotAction, dealGame, redactForPlayer, skipTurn } from '@skipbo/shared';
+import type { ClientMessage, ErrorCode, NoticeCode, RedactedGameState, ServerMessage } from '@skipbo/shared';
 import {
   ConditionalCheckFailedException,
   GameRecord,
@@ -53,31 +53,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 const BOT_MOVE_DELAY_MS = 650;
-const MAX_BOT_STEPS = 300; // safety backstop against any bug that could otherwise loop forever
-
-/** After a human action (or game start) may have handed the turn to a bot, play out bot
- * turns one move at a time, broadcasting and pausing between each so it's watchable, until
- * a human's turn comes up again or the game ends. */
-async function runBotTurns(gameId: string): Promise<void> {
-  for (let step = 0; step < MAX_BOT_STEPS; step++) {
-    let tookBotStep = false;
-    const record = await saveGameWithRetry(gameId, (rec) => {
-      if (!rec.stateJson || rec.status !== 'in-progress') return rec;
-      const state = parseState(rec);
-      const activePlayer = state.players[state.currentPlayerIndex];
-      if (!activePlayer.isBot) return rec;
-      tookBotStep = true;
-      const action = chooseBotAction(state, activePlayer.id);
-      const result = action.type === 'play' ? applyPlay(state, action) : applyDiscard(state, action);
-      if (!result.ok) return rec; // shouldn't happen; avoid looping on a bad state
-      return withState(rec, result.state);
-    });
-    if (!tookBotStep) return;
-    await broadcastState(record);
-    if (record.status !== 'in-progress') return;
-    await sleep(BOT_MOVE_DELAY_MS);
-  }
-}
+const MAX_AUTO_STEPS = 300; // safety backstop against any bug that could otherwise loop forever
 
 async function broadcastState(record: GameRecord): Promise<void> {
   await Promise.all(
@@ -85,6 +61,53 @@ async function broadcastState(record: GameRecord): Promise<void> {
       .filter((p): p is typeof p & { connectionId: string } => !!p.connectionId)
       .map((p) => send(p.connectionId, { type: 'state', state: redactedForPlayer(record, p.id) })),
   );
+}
+
+async function broadcastNotice(record: GameRecord, code: NoticeCode, params?: Record<string, string | number>): Promise<void> {
+  await Promise.all(
+    record.players
+      .filter((p): p is typeof p & { connectionId: string } => !!p.connectionId)
+      .map((p) => send(p.connectionId, { type: 'notice', code, params })),
+  );
+}
+
+/** After a human action (or game start) may have handed the turn to a bot or to a currently
+ * disconnected human, keep advancing automatically -- bots play a move at a time (broadcasting
+ * and pausing between each so it's watchable), disconnected humans are skipped outright -- until
+ * a connected human's turn comes up or the game ends. Cascades across consecutive bots/skips. */
+async function advanceAutomaticTurns(gameId: string): Promise<void> {
+  for (let step = 0; step < MAX_AUTO_STEPS; step++) {
+    let action: 'bot' | 'skip' | null = null;
+    let skippedName = '';
+    const record = await saveGameWithRetry(gameId, (rec) => {
+      if (!rec.stateJson || rec.status !== 'in-progress') return rec;
+      const state = parseState(rec);
+      const activePlayer = state.players[state.currentPlayerIndex];
+
+      if (activePlayer.isBot) {
+        const botAction = chooseBotAction(state, activePlayer.id);
+        const result = botAction.type === 'play' ? applyPlay(state, botAction) : applyDiscard(state, botAction);
+        if (!result.ok) return rec; // shouldn't happen; avoid looping on a bad state
+        action = 'bot';
+        return withState(rec, result.state);
+      }
+
+      if (!activePlayer.connected) {
+        const result = skipTurn(state, activePlayer.id);
+        if (!result.ok) return rec;
+        action = 'skip';
+        skippedName = activePlayer.name;
+        return withState(rec, result.state);
+      }
+
+      return rec;
+    });
+    if (!action) return;
+    await broadcastState(record);
+    if (action === 'skip') await broadcastNotice(record, 'TURN_SKIPPED', { name: skippedName });
+    if (record.status !== 'in-progress') return;
+    if (action === 'bot') await sleep(BOT_MOVE_DELAY_MS);
+  }
 }
 
 /** Reload + reapply `mutate` a few times in case of a concurrent write conflict. */
@@ -108,23 +131,31 @@ async function handleConnect(): Promise<APIGatewayProxyResultV2> {
   return { statusCode: 200 };
 }
 
+/** Marks a player as disconnected -- used both when their WebSocket actually drops ($disconnect)
+ * and when they explicitly leave via the UI. Never removes them or deletes the game, so they (or
+ * anyone with the room code) can rejoin later; see the `rejoinGame` action. */
+function markPlayerDisconnected(rec: GameRecord, playerId: string): GameRecord {
+  const idx = rec.players.findIndex((p) => p.id === playerId);
+  if (idx === -1) return rec;
+  const players = rec.players.map((p, i) => (i === idx ? { ...p, connectionId: null } : p));
+  let updated: GameRecord = { ...rec, players };
+  if (updated.stateJson) {
+    const state = parseState(updated);
+    state.players[idx].connected = false;
+    updated = withState(updated, state);
+  }
+  return updated;
+}
+
 async function handleDisconnect(connectionId: string): Promise<APIGatewayProxyResultV2> {
   const conn = await getConnection(connectionId);
   if (conn) {
     try {
-      const record = await saveGameWithRetry(conn.gameId, (rec) => {
-        const idx = rec.players.findIndex((p) => p.id === conn.playerId);
-        if (idx === -1) return rec;
-        const players = rec.players.map((p, i) => (i === idx ? { ...p, connectionId: null } : p));
-        let updated: GameRecord = { ...rec, players };
-        if (updated.stateJson) {
-          const state = parseState(updated);
-          state.players[idx].connected = false;
-          updated = withState(updated, state);
-        }
-        return updated;
-      });
+      const record = await saveGameWithRetry(conn.gameId, (rec) => markPlayerDisconnected(rec, conn.playerId));
+      const name = record.players.find((p) => p.id === conn.playerId)?.name ?? '';
       await broadcastState(record);
+      await broadcastNotice(record, 'PLAYER_LEFT', { name });
+      await advanceAutomaticTurns(record.gameId);
     } catch {
       // best effort; nothing more we can do if the game record is gone
     }
@@ -270,7 +301,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           await send(connectionId, { type: 'error', code: failure, params: failure === 'NOT_ENOUGH_PLAYERS' ? { min: MIN_PLAYERS } : undefined });
         } else {
           await broadcastState(record);
-          await runBotTurns(record.gameId);
+          await advanceAutomaticTurns(record.gameId);
         }
         return { statusCode: 200 };
       }
@@ -303,7 +334,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           await send(connectionId, { type: 'error', code: failure });
         } else {
           await broadcastState(record);
-          await runBotTurns(record.gameId);
+          await advanceAutomaticTurns(record.gameId);
         }
         return { statusCode: 200 };
       }
@@ -330,8 +361,23 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           await send(connectionId, { type: 'error', code: failure });
         } else {
           await broadcastState(record);
-          await runBotTurns(record.gameId);
+          await advanceAutomaticTurns(record.gameId);
         }
+        return { statusCode: 200 };
+      }
+
+      case 'leaveGame': {
+        const conn = await getConnection(connectionId);
+        if (!conn) {
+          await send(connectionId, { type: 'error', code: 'NOT_CONNECTED' });
+          return { statusCode: 200 };
+        }
+        const record = await saveGameWithRetry(conn.gameId, (rec) => markPlayerDisconnected(rec, conn.playerId));
+        const name = record.players.find((p) => p.id === conn.playerId)?.name ?? '';
+        await deleteConnection(connectionId);
+        await broadcastState(record);
+        await broadcastNotice(record, 'PLAYER_LEFT', { name });
+        await advanceAutomaticTurns(record.gameId);
         return { statusCode: 200 };
       }
 

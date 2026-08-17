@@ -180,6 +180,23 @@ export function applyDiscard(state: GameState, action: DiscardCardAction): Engin
   return { ok: true, state: next };
 }
 
+/** Advances the turn to the next player without any card action -- used when the current
+ * player is a disconnected human, rather than guessing a discard on their behalf. */
+export function skipTurn(state: GameState, playerId: string): EngineResult {
+  const next = cloneState(state);
+  if (next.status !== 'in-progress') return fail(state, 'GAME_NOT_IN_PROGRESS');
+
+  const playerIndex = getPlayerIndex(next, playerId);
+  if (playerIndex === -1) return fail(state, 'UNKNOWN_PLAYER');
+  if (playerIndex !== next.currentPlayerIndex) return fail(state, 'NOT_YOUR_TURN');
+
+  const nextPlayerIndex = (playerIndex + 1) % next.players.length;
+  next.currentPlayerIndex = nextPlayerIndex;
+  drawUpToHandSize(next, next.players[nextPlayerIndex]);
+
+  return { ok: true, state: next };
+}
+
 function summarize(pile: Card[]): PileSummary {
   return { topCard: pile.length ? pile[pile.length - 1] : null, count: pile.length };
 }

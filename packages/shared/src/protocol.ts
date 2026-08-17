@@ -43,6 +43,10 @@ export interface RematchMessage {
   action: 'rematch';
 }
 
+export interface LeaveGameMessage {
+  action: 'leaveGame';
+}
+
 export type ClientMessage =
   | CreateGameMessage
   | JoinGameMessage
@@ -51,7 +55,8 @@ export type ClientMessage =
   | AddBotMessage
   | PlayCardMessage
   | DiscardCardMessage
-  | RematchMessage;
+  | RematchMessage
+  | LeaveGameMessage;
 
 // ---- Server -> Client ----
 
@@ -78,4 +83,13 @@ export interface ErrorMessage {
   params?: Record<string, string | number>;
 }
 
-export type ServerMessage = GameCreatedMessage | JoinedMessage | StateMessage | ErrorMessage;
+/** Non-error, informational broadcasts -- e.g. someone left, or a disconnected player's turn was skipped. */
+export type NoticeCode = 'PLAYER_LEFT' | 'TURN_SKIPPED';
+
+export interface NoticeMessage {
+  type: 'notice';
+  code: NoticeCode;
+  params?: Record<string, string | number>;
+}
+
+export type ServerMessage = GameCreatedMessage | JoinedMessage | StateMessage | ErrorMessage | NoticeMessage;

@@ -64,6 +64,9 @@ export const translations = {
     'error.GAME_NOT_FINISHED': "That game isn't finished yet.",
     'error.UNKNOWN_ACTION': 'Something went wrong. Try again.',
     'error.SERVER_ERROR': 'Server error, please try again.',
+
+    'notice.PLAYER_LEFT': '{name} left the game.',
+    'notice.TURN_SKIPPED': "{name}'s turn was skipped (offline).",
   },
   fr: {
     'app.title': 'Skip-Bo',
@@ -130,6 +133,9 @@ export const translations = {
     'error.GAME_NOT_FINISHED': "Cette partie n'est pas encore terminée.",
     'error.UNKNOWN_ACTION': 'Une erreur est survenue. Réessayez.',
     'error.SERVER_ERROR': 'Erreur du serveur, veuillez réessayer.',
+
+    'notice.PLAYER_LEFT': '{name} a quitté la partie.',
+    'notice.TURN_SKIPPED': 'Le tour de {name} a été sauté (hors ligne).',
   },
 } as const;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dealGame, applyPlay, applyDiscard, redactForPlayer } from './engine.js';
+import { dealGame, applyPlay, applyDiscard, redactForPlayer, skipTurn } from './engine.js';
 import type { ActiveGameState, Card, GameState } from './types.js';
 
 function card(id: string, value: Card['value']): Card {
@@ -220,6 +220,26 @@ describe('applyDiscard', () => {
     const state = baseState();
     const result = applyDiscard(state, { type: 'discard', playerId: 'p1', cardId: 'nope', pileIndex: 0 });
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('skipTurn', () => {
+  it('advances to the next player without touching any cards, and draws them up to a full hand', () => {
+    const state = baseState({ drawPile: [card('d1', 1), card('d2', 1), card('d3', 1), card('d4', 1)] });
+    state.players[0].hand = [card('h1', 1)];
+    state.players[1].hand = [card('h2', 2)];
+    const result = skipTurn(state, 'p1');
+    expect(result.ok).toBe(true);
+    expect(result.state.currentPlayerIndex).toBe(1);
+    expect(result.state.players[0].hand).toEqual([card('h1', 1)]); // untouched
+    expect(result.state.players[1].hand).toHaveLength(5); // topped up
+  });
+
+  it('rejects skipping when it is not that player\'s turn', () => {
+    const state = baseState({ currentPlayerIndex: 1 });
+    const result = skipTurn(state, 'p1');
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('NOT_YOUR_TURN');
   });
 });
 

@@ -25,6 +25,8 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>(() => (loadSession() ? { kind: 'connecting-existing' } : { kind: 'home' }));
   const [gameState, setGameState] = useState<RedactedGameState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingNameRef = useRef<string | null>(null);
   const pendingSoloRef = useRef(false);
   // handleMessage needs to send follow-up messages, but useWebSocket (which produces `send`)
@@ -75,6 +77,12 @@ export default function App() {
           });
           break;
         }
+        case 'notice': {
+          setNotice(t(`notice.${msg.code}` as TranslationKey, msg.params));
+          if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+          noticeTimerRef.current = setTimeout(() => setNotice(null), 4000);
+          break;
+        }
       }
     },
     [t],
@@ -116,12 +124,25 @@ export default function App() {
     [send],
   );
 
-  const handleLeave = useCallback(() => {
+  // Used for the lobby's "Cancel" and the game-over screen's "Back to home" -- there's no
+  // reason to auto-rejoin a game you deliberately abandoned before it started or after it ended.
+  const handleLeaveAndForget = useCallback(() => {
+    send({ action: 'leaveGame' });
     clearSession();
     setGameState(null);
     setError(null);
     setPhase({ kind: 'home' });
-  }, []);
+  }, [send]);
+
+  // Used for the "Leave" button during an active game. The server marks you disconnected (so
+  // other players see it and your turns get skipped) and the game keeps going -- but your
+  // session stays in localStorage, so reopening the app on this device auto-rejoins you.
+  const handleLeaveActiveGame = useCallback(() => {
+    send({ action: 'leaveGame' });
+    setGameState(null);
+    setError(null);
+    setPhase({ kind: 'home' });
+  }, [send]);
 
   if (phase.kind === 'connecting-existing') {
     return (
@@ -136,13 +157,17 @@ export default function App() {
   }
 
   if (phase.kind === 'connected' && gameState) {
-    if (gameState.status === 'waiting-for-players') {
-      return <LobbyView state={gameState} send={send} onLeave={handleLeave} />;
-    }
+    const content =
+      gameState.status === 'waiting-for-players' ? (
+        <LobbyView state={gameState} send={send} onLeave={handleLeaveAndForget} />
+      ) : (
+        <GameBoard state={gameState} send={send} onLeave={handleLeaveActiveGame} onBackToHome={handleLeaveAndForget} />
+      );
     return (
       <>
-        <GameBoard state={gameState} send={send} onLeave={handleLeave} />
-        {error && <div className="toast">{error}</div>}
+        {content}
+        {error && <div className="toast toast--error">{error}</div>}
+        {notice && <div className="toast toast--info">{notice}</div>}
       </>
     );
   }

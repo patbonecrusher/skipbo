@@ -13,13 +13,14 @@ interface GameBoardProps {
   state: ActiveGameState;
   send: (message: ClientMessage) => void;
   onLeave: () => void;
+  onBackToHome: () => void;
 }
 
 function canPlayOnPile(value: number | 'SKIPBO', pile: PileSummary): boolean {
   return value === 'SKIPBO' || value === pile.count + 1;
 }
 
-export function GameBoard({ state, send, onLeave }: GameBoardProps) {
+export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps) {
   const { t } = useLanguage();
   const [selected, setSelected] = useState<Selection | null>(null);
 
@@ -183,7 +184,7 @@ export function GameBoard({ state, send, onLeave }: GameBoardProps) {
               <button type="button" className="board__overlay-primary" onClick={() => send({ action: 'rematch' })}>
                 {t('board.playAgain')}
               </button>
-              <button type="button" className="board__overlay-secondary" onClick={onLeave}>
+              <button type="button" className="board__overlay-secondary" onClick={onBackToHome}>
                 {t('board.backToHome')}
               </button>
             </div>
