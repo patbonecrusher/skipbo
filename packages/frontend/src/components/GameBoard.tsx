@@ -1,0 +1,175 @@
+import { useState } from 'react';
+import type { ClientMessage, PileSummary, PlaySource, RedactedGameState } from '@skipbo/shared';
+import { Card } from './Card';
+import { PileStack } from './PileStack';
+
+type Selection = { kind: 'hand'; cardId: string } | { kind: 'stock' } | { kind: 'discard'; pileIndex: 0 | 1 | 2 | 3 };
+
+interface GameBoardProps {
+  state: RedactedGameState;
+  send: (message: ClientMessage) => void;
+  onLeave: () => void;
+}
+
+function canPlayOnPile(value: number | 'SKIPBO', pile: PileSummary): boolean {
+  return value === 'SKIPBO' || value === pile.count + 1;
+}
+
+export function GameBoard({ state, send, onLeave }: GameBoardProps) {
+  const [selected, setSelected] = useState<Selection | null>(null);
+
+  const isYourTurn = state.currentPlayerIndex === state.youIndex && state.status === 'in-progress';
+  const gameOver = state.status === 'finished';
+  const youWon = gameOver && state.winnerId === state.you.id;
+
+  const selectedCard =
+    selected?.kind === 'hand'
+      ? state.you.hand.find((c) => c.id === selected.cardId) ?? null
+      : selected?.kind === 'stock'
+        ? state.you.stockPile.topCard
+        : selected?.kind === 'discard'
+          ? state.you.discardPiles[selected.pileIndex].topCard
+          : null;
+
+  function toSource(sel: Selection): PlaySource {
+    if (sel.kind === 'hand') return { kind: 'hand', cardId: sel.cardId };
+    if (sel.kind === 'stock') return { kind: 'stock' };
+    return { kind: 'discard', pileIndex: sel.pileIndex };
+  }
+
+  function handleHandCardClick(cardId: string) {
+    if (!isYourTurn) return;
+    setSelected((prev) => (prev?.kind === 'hand' && prev.cardId === cardId ? null : { kind: 'hand', cardId }));
+  }
+
+  function handleStockClick() {
+    if (!isYourTurn || !state.you.stockPile.topCard) return;
+    setSelected((prev) => (prev?.kind === 'stock' ? null : { kind: 'stock' }));
+  }
+
+  function handleDiscardPileClick(pileIndex: 0 | 1 | 2 | 3) {
+    if (!isYourTurn) return;
+    if (selected?.kind === 'hand') {
+      send({ action: 'discardCard', cardId: selected.cardId, pileIndex });
+      setSelected(null);
+      return;
+    }
+    if (selected?.kind === 'discard' && selected.pileIndex === pileIndex) {
+      setSelected(null);
+      return;
+    }
+    if (state.you.discardPiles[pileIndex].topCard) {
+      setSelected({ kind: 'discard', pileIndex });
+    }
+  }
+
+  function handleBuildPileClick(index: 0 | 1 | 2 | 3) {
+    if (!isYourTurn || !selected || !selectedCard) return;
+    if (!canPlayOnPile(selectedCard.value, state.buildPiles[index])) return;
+    send({ action: 'playCard', source: toSource(selected), buildPileIndex: index });
+    setSelected(null);
+  }
+
+  const buildPilesPlayable = isYourTurn && !!selectedCard;
+
+  return (
+    <div className="board">
+      <header className="board__topbar">
+        <span className="board__room-code">Room {state.gameId}</span>
+        {gameOver ? (
+          <span className="board__status">{youWon ? 'You won! 🎉' : `${state.opponent.name} won`}</span>
+        ) : (
+          <span className="board__status">{isYourTurn ? 'Your turn' : `${state.opponent.name}'s turn`}</span>
+        )}
+        <button type="button" className="board__leave" onClick={onLeave}>
+          Leave
+        </button>
+      </header>
+
+      <section className="board__player-row board__player-row--opponent">
+        <div className="board__player-label">
+          <span className={`board__dot ${state.opponent.connected ? 'board__dot--on' : 'board__dot--off'}`} />
+          {state.opponent.name}
+        </div>
+        <div className="board__piles">
+          <PileStack pile={state.opponent.stockPile} label="Stock" />
+          <div className="board__hand-count" title={`${state.opponent.handCount} cards in hand`}>
+            {Array.from({ length: state.opponent.handCount }).map((_, i) => (
+              <span key={i} className="board__hand-back" />
+            ))}
+          </div>
+          {state.opponent.discardPiles.map((pile, i) => (
+            <PileStack key={i} pile={pile} label={`D${i + 1}`} />
+          ))}
+        </div>
+      </section>
+
+      <section className="board__build-row">
+        {state.buildPiles.map((pile, i) => (
+          <PileStack
+            key={i}
+            pile={pile}
+            label={`${i + 1}`}
+            interactive={buildPilesPlayable}
+            dimmed={buildPilesPlayable && selectedCard ? !canPlayOnPile(selectedCard.value, pile) : false}
+            onClick={() => handleBuildPileClick(i as 0 | 1 | 2 | 3)}
+          />
+        ))}
+      </section>
+
+      <section className="board__player-row board__player-row--you">
+        <div className="board__player-label">
+          <span className={`board__dot ${state.you.connected ? 'board__dot--on' : 'board__dot--off'}`} />
+          {state.you.name} (you)
+        </div>
+        <div className="board__piles">
+          <PileStack
+            pile={state.you.stockPile}
+            label="Stock"
+            selected={selected?.kind === 'stock'}
+            interactive={isYourTurn && !!state.you.stockPile.topCard}
+            onClick={handleStockClick}
+          />
+          {state.you.discardPiles.map((pile, i) => (
+            <PileStack
+              key={i}
+              pile={pile}
+              label={`D${i + 1}`}
+              selected={selected?.kind === 'discard' && selected.pileIndex === i}
+              interactive={isYourTurn && (selected?.kind === 'hand' || !!pile.topCard)}
+              onClick={() => handleDiscardPileClick(i as 0 | 1 | 2 | 3)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="board__hand-row">
+        {state.you.hand.map((c) => (
+          <Card
+            key={c.id}
+            card={c}
+            interactive={isYourTurn}
+            selected={selected?.kind === 'hand' && selected.cardId === c.id}
+            onClick={() => handleHandCardClick(c.id)}
+          />
+        ))}
+      </section>
+
+      {gameOver && (
+        <div className="board__overlay">
+          <div className="board__overlay-card">
+            <h2>{youWon ? 'You won! 🎉' : `${state.opponent.name} won`}</h2>
+            <div className="board__overlay-actions">
+              <button type="button" className="board__overlay-primary" onClick={() => send({ action: 'rematch' })}>
+                Play again
+              </button>
+              <button type="button" className="board__overlay-secondary" onClick={onLeave}>
+                Back to home
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
