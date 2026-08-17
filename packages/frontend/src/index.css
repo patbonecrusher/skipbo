@@ -249,24 +249,6 @@ button {
   gap: clamp(4px, 1vw, 10px);
 }
 
-.board__discard-fan {
-  display: flex;
-}
-
-.board__discard-fan .pile-stack:not(:first-child) {
-  margin-left: calc(var(--card-w) * -0.58);
-}
-
-/* Keep each fanned pile's count badge above the card stacked on top of it. */
-.board__discard-fan .pile-stack {
-  position: relative;
-}
-
-.board__discard-fan .pile-stack:hover,
-.board__discard-fan .pile-stack:focus-within {
-  z-index: 1;
-}
-
 .board__opponents {
   display: flex;
   flex-wrap: wrap;
@@ -306,28 +288,6 @@ button {
   align-items: center;
   gap: 8px;
   font-size: 0.95rem;
-}
-
-.board__hand-count {
-  display: flex;
-  gap: 2px;
-  align-items: center;
-  min-width: var(--card-w);
-  min-height: var(--card-h);
-}
-
-.board__hand-back {
-  width: 16px;
-  height: calc(var(--card-h) * 0.6);
-  object-fit: cover;
-  border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  margin-left: -10px;
-}
-
-.board__hand-back:first-child {
-  margin-left: 0;
 }
 
 .board__build-row {
