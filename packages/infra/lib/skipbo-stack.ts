@@ -34,6 +34,7 @@ export class SkipboStack extends Stack {
     const connectionsTable = new Table(this, 'ConnectionsTable', {
       partitionKey: { name: 'connectionId', type: AttributeType.STRING },
       billingMode: BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: 'expiresAt',
       removalPolicy: RemovalPolicy.DESTROY,
     });
 

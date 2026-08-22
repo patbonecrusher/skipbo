@@ -8,6 +8,9 @@ const GAMES_TABLE = process.env.GAMES_TABLE!;
 const CONNECTIONS_TABLE = process.env.CONNECTIONS_TABLE!;
 
 const GAME_TTL_SECONDS = 60 * 60 * 24 * 3; // games are cleaned up 3 days after creation
+// API Gateway WebSocket connections are force-closed after 2 hours at the latest, so this only
+// ever catches connections whose $disconnect event never made it to us (crash, dropped network).
+const CONNECTION_TTL_SECONDS = 60 * 60 * 24;
 
 export interface GamePlayer {
   id: string;
@@ -108,7 +111,8 @@ export interface ConnectionRecord {
 }
 
 export async function putConnection(rec: ConnectionRecord): Promise<void> {
-  await client.send(new PutCommand({ TableName: CONNECTIONS_TABLE, Item: rec }));
+  const expiresAt = Math.floor(Date.now() / 1000) + CONNECTION_TTL_SECONDS;
+  await client.send(new PutCommand({ TableName: CONNECTIONS_TABLE, Item: { ...rec, expiresAt } }));
 }
 
 export async function getConnection(connectionId: string): Promise<ConnectionRecord | undefined> {
