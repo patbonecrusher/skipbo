@@ -18,10 +18,10 @@ export function OpponentPanel({ opponent, isTheirTurn }: OpponentPanelProps) {
         {opponent.name}
       </div>
       <div className="board__piles board__piles--compact">
-        <PileStack pile={opponent.stockPile} label={t('board.stock')} />
-        <HandCountCard count={opponent.handCount} />
+        <PileStack pile={opponent.stockPile} label={t('board.stock')} animKey={`opp-${opponent.id}-stock`} />
+        <HandCountCard count={opponent.handCount} animKey={`opp-${opponent.id}-hand`} />
         {opponent.discardPiles.map((pile, i) => (
-          <PileStack key={i} pile={pile} label={`D${i + 1}`} />
+          <PileStack key={i} pile={pile} label={`D${i + 1}`} animKey={`opp-${opponent.id}-discard-${i}`} />
         ))}
       </div>
     </div>
