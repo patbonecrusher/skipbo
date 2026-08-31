@@ -39,6 +39,10 @@ export interface DiscardCardMessage {
   pileIndex: 0 | 1 | 2 | 3;
 }
 
+export interface UndoMessage {
+  action: 'undo';
+}
+
 export interface RematchMessage {
   action: 'rematch';
 }
@@ -55,6 +59,7 @@ export type ClientMessage =
   | AddBotMessage
   | PlayCardMessage
   | DiscardCardMessage
+  | UndoMessage
   | RematchMessage
   | LeaveGameMessage;
 

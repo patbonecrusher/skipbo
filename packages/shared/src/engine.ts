@@ -239,5 +239,8 @@ export function redactForPlayer(state: GameState, forPlayerId: string): Redacted
     buildPiles: state.buildPiles.map(summarize) as [PileSummary, PileSummary, PileSummary, PileSummary],
     drawPileCount: state.drawPile.length + state.usedPile.length,
     winnerId: state.winnerId,
+    // The engine has no concept of undo history (that's server-side bookkeeping on GameRecord);
+    // ws-handler's redactedForPlayer overrides this with the real value.
+    canUndo: false,
   };
 }

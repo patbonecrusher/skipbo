@@ -32,6 +32,7 @@ export const translations = {
     'board.yourTurn': 'Your turn',
     'board.playerTurn': "{name}'s turn",
     'board.leave': 'Leave',
+    'board.undo': 'Undo',
     'board.stock': 'Stock',
     'board.drawPile': 'Draw',
     'board.hand': 'Hand',
@@ -63,6 +64,7 @@ export const translations = {
     'error.NOT_ENOUGH_PLAYERS': 'Need at least {min} players to start.',
     'error.GAME_NOT_STARTED': "That game hasn't started yet.",
     'error.GAME_NOT_FINISHED': "That game isn't finished yet.",
+    'error.NOTHING_TO_UNDO': "There's nothing to undo.",
     'error.UNKNOWN_ACTION': 'Something went wrong. Try again.',
     'error.SERVER_ERROR': 'Server error, please try again.',
 
@@ -102,6 +104,7 @@ export const translations = {
     'board.yourTurn': 'Votre tour',
     'board.playerTurn': 'Tour de {name}',
     'board.leave': 'Quitter',
+    'board.undo': 'Annuler',
     'board.stock': 'Pioche',
     'board.drawPile': 'Paquet',
     'board.hand': 'Main',
@@ -133,6 +136,7 @@ export const translations = {
     'error.NOT_ENOUGH_PLAYERS': 'Il faut au moins {min} joueurs pour démarrer.',
     'error.GAME_NOT_STARTED': "Cette partie n'a pas encore commencé.",
     'error.GAME_NOT_FINISHED': "Cette partie n'est pas encore terminée.",
+    'error.NOTHING_TO_UNDO': "Il n'y a rien à annuler.",
     'error.UNKNOWN_ACTION': 'Une erreur est survenue. Réessayez.',
     'error.SERVER_ERROR': 'Erreur du serveur, veuillez réessayer.',
 

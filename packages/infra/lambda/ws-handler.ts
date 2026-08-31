@@ -1,7 +1,7 @@
 import { ApiGatewayManagementApiClient, PostToConnectionCommand, GoneException } from '@aws-sdk/client-apigatewaymanagementapi';
 import type { APIGatewayProxyResultV2, APIGatewayProxyWebsocketEventV2 } from 'aws-lambda';
 import { MAX_PLAYERS, MIN_PLAYERS, applyDiscard, applyPlay, chooseBotAction, dealGame, redactForPlayer, skipTurn } from '@skipbo/shared';
-import type { ClientMessage, ErrorCode, NoticeCode, RedactedGameState, ServerMessage } from '@skipbo/shared';
+import type { ActiveGameState, ClientMessage, ErrorCode, GameState, NoticeCode, RedactedGameState, ServerMessage } from '@skipbo/shared';
 import {
   ConditionalCheckFailedException,
   GameRecord,
@@ -45,7 +45,8 @@ function redactedForPlayer(record: GameRecord, playerId: string): RedactedGameSt
       maxPlayers: MAX_PLAYERS,
     };
   }
-  return redactForPlayer(parseState(record), playerId);
+  const redacted = redactForPlayer(parseState(record), playerId) as ActiveGameState;
+  return { ...redacted, canUndo: record.undoPlayerId === playerId && !!record.undoStateJson };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -328,13 +329,46 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
             failure = result.error ?? 'INVALID_MOVE';
             return rec;
           }
-          return withState(rec, result.state);
+          const updated = withState(rec, result.state);
+          // A play doesn't end the turn, so it's safe to undo -- remember the state from just
+          // before it. A discard ends the turn, locking in everything that came before it.
+          if (message.action === 'playCard') {
+            return { ...updated, undoStateJson: rec.stateJson, undoPlayerId: conn.playerId };
+          }
+          return updated;
         });
         if (failure) {
           await send(connectionId, { type: 'error', code: failure });
         } else {
           await broadcastState(record);
           await advanceAutomaticTurns(record.gameId);
+        }
+        return { statusCode: 200 };
+      }
+
+      case 'undo': {
+        const conn = await getConnection(connectionId);
+        if (!conn) {
+          await send(connectionId, { type: 'error', code: 'NOT_CONNECTED' });
+          return { statusCode: 200 };
+        }
+        let failure: ErrorCode | null = null;
+        const record = await saveGameWithRetry(conn.gameId, (rec) => {
+          if (!rec.stateJson) {
+            failure = 'GAME_NOT_STARTED';
+            return rec;
+          }
+          if (!rec.undoStateJson || rec.undoPlayerId !== conn.playerId) {
+            failure = 'NOTHING_TO_UNDO';
+            return rec;
+          }
+          const undoneState = JSON.parse(rec.undoStateJson) as GameState;
+          return withState(rec, undoneState);
+        });
+        if (failure) {
+          await send(connectionId, { type: 'error', code: failure });
+        } else {
+          await broadcastState(record);
         }
         return { statusCode: 200 };
       }

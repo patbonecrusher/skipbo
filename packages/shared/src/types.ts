@@ -86,6 +86,7 @@ export type ErrorCode =
   | 'NOT_ENOUGH_PLAYERS'
   | 'GAME_NOT_STARTED'
   | 'GAME_NOT_FINISHED'
+  | 'NOTHING_TO_UNDO'
   | 'UNKNOWN_ACTION'
   | 'SERVER_ERROR';
 
@@ -150,6 +151,8 @@ export interface ActiveGameState {
   buildPiles: [PileSummary, PileSummary, PileSummary, PileSummary];
   drawPileCount: number;
   winnerId: string | null;
+  /** True if you have a pending play (this turn) that `undo` can revert. */
+  canUndo: boolean;
 }
 
 export type RedactedGameState = LobbyGameState | ActiveGameState;

@@ -28,6 +28,9 @@ export interface GameRecord {
   version: number;
   createdAt: number;
   expiresAt: number;
+  /** Snapshot of stateJson from just before undoPlayerId's last play, or null if there's nothing to undo. */
+  undoStateJson: string | null;
+  undoPlayerId: string | null;
 }
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O/1/I/L
@@ -57,6 +60,8 @@ export async function createPendingGame(hostId: string, hostName: string): Promi
       version: 0,
       createdAt: now,
       expiresAt: Math.floor(now / 1000) + GAME_TTL_SECONDS,
+      undoStateJson: null,
+      undoPlayerId: null,
     };
     try {
       await client.send(
@@ -101,7 +106,15 @@ export function parseState(record: GameRecord): GameState {
 }
 
 export function withState(record: GameRecord, state: GameState): GameRecord {
-  return { ...record, stateJson: JSON.stringify(state), status: state.status === 'finished' ? 'finished' : 'in-progress' };
+  return {
+    ...record,
+    stateJson: JSON.stringify(state),
+    status: state.status === 'finished' ? 'finished' : 'in-progress',
+    // Committing a new state always starts from "nothing to undo" -- callers that want an undo
+    // point available afterward (a human's own play) set it back explicitly.
+    undoStateJson: null,
+    undoPlayerId: null,
+  };
 }
 
 export interface ConnectionRecord {

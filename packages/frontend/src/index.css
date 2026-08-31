@@ -288,6 +288,16 @@ button {
   cursor: pointer;
 }
 
+.board__undo {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
 .board__player-row {
   display: flex;
   flex-direction: column;

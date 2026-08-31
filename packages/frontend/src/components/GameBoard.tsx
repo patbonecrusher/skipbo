@@ -294,6 +294,11 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
           <span className="board__status">{isYourTurn ? t('board.yourTurn') : t('board.playerTurn', { name: activePlayerName ?? '…' })}</span>
         )}
         <div className="board__topbar-right">
+          {isYourTurn && state.canUndo && (
+            <button type="button" className="board__undo" onClick={() => send({ action: 'undo' })}>
+              {t('board.undo')}
+            </button>
+          )}
           <LanguageToggle />
           <button type="button" className="board__leave" onClick={onLeave}>
             {t('board.leave')}
