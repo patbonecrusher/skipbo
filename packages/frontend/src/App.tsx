@@ -22,7 +22,19 @@ async function resolveWsUrl(): Promise<string> {
 export default function App() {
   const { t } = useLanguage();
   const [wsUrl, setWsUrl] = useState<string | null>(null);
-  const [phase, setPhase] = useState<Phase>(() => (loadSession() ? { kind: 'connecting-existing' } : { kind: 'home' }));
+  // A link to a *different* game (e.g. a fresh invite someone was sent) should win over a stale
+  // saved session from a previous game on this device -- otherwise clicking the link would just
+  // silently reconnect to the old game instead of joining the new one.
+  const [phase, setPhase] = useState<Phase>(() => {
+    const existing = loadSession();
+    if (!existing) return { kind: 'home' };
+    const linkedGameId = new URLSearchParams(window.location.search).get('game');
+    if (linkedGameId && linkedGameId !== existing.gameId) {
+      clearSession();
+      return { kind: 'home' };
+    }
+    return { kind: 'connecting-existing' };
+  });
   const [gameState, setGameState] = useState<RedactedGameState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -92,12 +104,12 @@ export default function App() {
   sendRef.current = send;
 
   useEffect(() => {
-    if (status !== 'open') return;
+    if (status !== 'open' || phase.kind !== 'connecting-existing') return;
     const existing = loadSession();
     if (existing) {
       send({ action: 'rejoinGame', gameId: existing.gameId, playerId: existing.playerId });
     }
-  }, [status, send]);
+  }, [status, send, phase.kind]);
 
   const handleCreate = useCallback(
     (name: string) => {
