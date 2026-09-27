@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dealGame, applyPlay, applyDiscard, redactForPlayer, skipTurn } from './engine.js';
+import { dealGame, applyPlay, applyDiscard, applyEndTurn, redactForPlayer, skipTurn } from './engine.js';
 import type { ActiveGameState, Card, GameState } from './types.js';
 
 function card(id: string, value: Card['value']): Card {
@@ -36,6 +36,7 @@ function baseState(overrides: Partial<GameState> = {}): GameState {
     usedPile: [],
     winnerId: null,
     createdAt: 0,
+    awaitingEndTurn: false,
     ...overrides,
   };
 }
@@ -127,6 +128,13 @@ describe('applyPlay', () => {
     expect(result.error).toBe('NOT_YOUR_TURN');
   });
 
+  it('rejects a play once the turn has a pending discard awaiting endTurn', () => {
+    const state = baseState({ awaitingEndTurn: true });
+    const result = applyPlay(state, { type: 'play', playerId: 'p1', source: { kind: 'hand', cardId: 'h1' }, buildPileIndex: 0 });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('AWAITING_END_TURN');
+  });
+
   it('clears a build pile once it reaches 12 and moves the cards to the used pile', () => {
     const eleven = Array.from({ length: 11 }, (_, i) => card(`b${i}`, (i + 1) as Card['value']));
     const state = baseState({ buildPiles: [eleven, [], [], []] });
@@ -180,46 +188,73 @@ describe('applyPlay', () => {
 });
 
 describe('applyDiscard', () => {
-  it('ends the turn, switches players, and draws the next player up to 5', () => {
-    const state = baseState({
-      drawPile: [card('d1', 1), card('d2', 1), card('d3', 1), card('d4', 1)],
-    });
-    state.players[1].hand = [card('h2', 2)];
+  it('moves the card to the discard pile and marks the turn awaiting end, without switching players', () => {
+    const state = baseState();
     const result = applyDiscard(state, { type: 'discard', playerId: 'p1', cardId: 'h1', pileIndex: 0 });
     expect(result.ok).toBe(true);
     expect(result.state.players[0].discardPiles[0]).toHaveLength(1);
     expect(result.state.players[0].hand).toHaveLength(0);
-    expect(result.state.currentPlayerIndex).toBe(1);
-    expect(result.state.players[1].hand).toHaveLength(5);
-  });
-
-  it('wraps turn order around from the last player back to the first', () => {
-    const state = baseState({
-      players: [
-        { id: 'p1', name: 'A', connected: true,
-        isBot: false, stockPile: [], hand: [card('h1', 1)], discardPiles: [[], [], [], []] },
-        { id: 'p2', name: 'B', connected: true,
-        isBot: false, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
-        { id: 'p3', name: 'C', connected: true,
-        isBot: false, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
-      ],
-      currentPlayerIndex: 0,
-    });
-    // First advance to the last player (index 2) via two discards, then confirm the third wraps to 0.
-    let result = applyDiscard(state, { type: 'discard', playerId: 'p1', cardId: 'h1', pileIndex: 0 });
-    expect(result.state.currentPlayerIndex).toBe(1);
-    result.state.players[1].hand = [card('h2', 1)];
-    result = applyDiscard(result.state, { type: 'discard', playerId: 'p2', cardId: 'h2', pileIndex: 0 });
-    expect(result.state.currentPlayerIndex).toBe(2);
-    result.state.players[2].hand = [card('h3', 1)];
-    result = applyDiscard(result.state, { type: 'discard', playerId: 'p3', cardId: 'h3', pileIndex: 0 });
     expect(result.state.currentPlayerIndex).toBe(0);
+    expect(result.state.awaitingEndTurn).toBe(true);
   });
 
   it('rejects discarding a card not in hand', () => {
     const state = baseState();
     const result = applyDiscard(state, { type: 'discard', playerId: 'p1', cardId: 'nope', pileIndex: 0 });
     expect(result.ok).toBe(false);
+  });
+
+  it('rejects a second discard before the first is confirmed with endTurn', () => {
+    const state = baseState({ awaitingEndTurn: true });
+    const result = applyDiscard(state, { type: 'discard', playerId: 'p1', cardId: 'h1', pileIndex: 0 });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('AWAITING_END_TURN');
+  });
+});
+
+describe('applyEndTurn', () => {
+  it('switches players and draws the next player up to 5, once a discard is pending', () => {
+    const state = baseState({
+      awaitingEndTurn: true,
+      drawPile: [card('d1', 1), card('d2', 1), card('d3', 1), card('d4', 1)],
+    });
+    state.players[1].hand = [card('h2', 2)];
+    const result = applyEndTurn(state, 'p1');
+    expect(result.ok).toBe(true);
+    expect(result.state.currentPlayerIndex).toBe(1);
+    expect(result.state.players[1].hand).toHaveLength(5);
+    expect(result.state.awaitingEndTurn).toBe(false);
+  });
+
+  it('wraps turn order around from the last player back to the first', () => {
+    const state = baseState({
+      players: [
+        { id: 'p1', name: 'A', connected: true,
+        isBot: false, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p2', name: 'B', connected: true,
+        isBot: false, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+        { id: 'p3', name: 'C', connected: true,
+        isBot: false, stockPile: [], hand: [], discardPiles: [[], [], [], []] },
+      ],
+      currentPlayerIndex: 2,
+      awaitingEndTurn: true,
+    });
+    const result = applyEndTurn(state, 'p3');
+    expect(result.state.currentPlayerIndex).toBe(0);
+  });
+
+  it('rejects ending a turn with no pending discard', () => {
+    const state = baseState({ awaitingEndTurn: false });
+    const result = applyEndTurn(state, 'p1');
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('NOTHING_TO_END');
+  });
+
+  it('rejects ending a turn that is not yours', () => {
+    const state = baseState({ awaitingEndTurn: true });
+    const result = applyEndTurn(state, 'p2');
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('NOT_YOUR_TURN');
   });
 });
 

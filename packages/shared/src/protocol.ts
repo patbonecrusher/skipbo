@@ -43,6 +43,10 @@ export interface UndoMessage {
   action: 'undo';
 }
 
+export interface EndTurnMessage {
+  action: 'endTurn';
+}
+
 export interface RematchMessage {
   action: 'rematch';
 }
@@ -60,6 +64,7 @@ export type ClientMessage =
   | PlayCardMessage
   | DiscardCardMessage
   | UndoMessage
+  | EndTurnMessage
   | RematchMessage
   | LeaveGameMessage;
 

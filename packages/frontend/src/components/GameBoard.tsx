@@ -77,6 +77,8 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
   const [flights, setFlights] = useState<Flight[]>([]);
 
   const isYourTurn = state.currentPlayerIndex === state.youIndex && state.status === 'in-progress';
+  // Once you've discarded, no further play/discard is legal until you confirm endTurn or undo it.
+  const canAct = isYourTurn && !state.awaitingEndTurn;
   const gameOver = state.status === 'finished';
   const youWon = gameOver && state.winnerId === state.you.id;
   const winnerName = gameOver && !youWon ? state.opponents.find((o) => o.id === state.winnerId)?.name ?? t('board.someone') : null;
@@ -181,19 +183,19 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
   }
 
   function handleHandCardClick(cardId: string) {
-    if (guardClick() || !isYourTurn) return;
+    if (guardClick() || !canAct) return;
     setSelected((prev) => (prev?.kind === 'hand' && prev.cardId === cardId ? null : { kind: 'hand', cardId }));
   }
 
   function handleStockClick() {
-    if (guardClick() || !isYourTurn || !state.you.stockPile.topCard) return;
+    if (guardClick() || !canAct || !state.you.stockPile.topCard) return;
     setSelected((prev) => (prev?.kind === 'stock' ? null : { kind: 'stock' }));
   }
 
   function handleDiscardPileClick(pileIndex: 0 | 1 | 2 | 3) {
     // A quick tap always selects this pile's top card as a new source (never discards),
     // so changing your mind about a selection can never accidentally fire a discard.
-    if (guardClick() || !isYourTurn) return;
+    if (guardClick() || !canAct) return;
     if (selected?.kind === 'discard' && selected.pileIndex === pileIndex) {
       setSelected(null);
       return;
@@ -204,13 +206,13 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
   }
 
   function handleDiscardHere(pileIndex: 0 | 1 | 2 | 3) {
-    if (guardClick() || !isYourTurn || selected?.kind !== 'hand') return;
+    if (guardClick() || !canAct || selected?.kind !== 'hand') return;
     send({ action: 'discardCard', cardId: selected.cardId, pileIndex });
     setSelected(null);
   }
 
   function handleBuildPileClick(index: 0 | 1 | 2 | 3) {
-    if (guardClick() || !isYourTurn || !selected || !selectedCard) return;
+    if (guardClick() || !canAct || !selected || !selectedCard) return;
     if (!canPlayOnPile(selectedCard.value, state.buildPiles[index])) return;
     send({ action: 'playCard', source: toSource(selected), buildPileIndex: index });
     setSelected(null);
@@ -236,7 +238,7 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
 
   /** Starts tracking a press that may turn into a drag. Attach to onPointerDown of a draggable source card. */
   function beginPress(e: React.PointerEvent, source: Selection, card: CardModel) {
-    if (!isYourTurn || e.button !== 0) return;
+    if (!canAct || e.button !== 0) return;
     const pointerId = e.pointerId;
     const startX = e.clientX;
     const startY = e.clientY;
@@ -281,7 +283,7 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
     window.addEventListener('pointercancel', onCancel);
   }
 
-  const buildPilesPlayable = isYourTurn && !!(selectedCard || drag);
+  const buildPilesPlayable = canAct && !!(selectedCard || drag);
   const effectiveSelectedCard = drag?.card ?? selectedCard;
 
   return (
@@ -297,6 +299,11 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
           {isYourTurn && state.canUndo && (
             <button type="button" className="board__undo" onClick={() => send({ action: 'undo' })}>
               {t('board.undo')}
+            </button>
+          )}
+          {isYourTurn && state.awaitingEndTurn && (
+            <button type="button" className="board__end-turn" onClick={() => send({ action: 'endTurn' })}>
+              {t('board.endTurn')}
             </button>
           )}
           <LanguageToggle />
@@ -344,11 +351,11 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
               pile={state.you.stockPile}
               label={t('board.stock')}
               selected={selected?.kind === 'stock'}
-              interactive={isYourTurn && !!state.you.stockPile.topCard}
+              interactive={canAct && !!state.you.stockPile.topCard}
               lifted={drag?.source.kind === 'stock'}
               onClick={handleStockClick}
               onPointerDownCard={
-                isYourTurn && state.you.stockPile.topCard
+                canAct && state.you.stockPile.topCard
                   ? (e) => beginPress(e, { kind: 'stock' }, state.you.stockPile.topCard!)
                   : undefined
               }
@@ -361,13 +368,13 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
                   pile={pile}
                   label={`D${i + 1}`}
                   selected={selected?.kind === 'discard' && selected.pileIndex === i}
-                  interactive={isYourTurn && (selected?.kind === 'hand' || drag?.source.kind === 'hand' || !!pile.topCard)}
+                  interactive={canAct && (selected?.kind === 'hand' || drag?.source.kind === 'hand' || !!pile.topCard)}
                   lifted={drag?.source.kind === 'discard' && drag.source.pileIndex === i}
                   dropZone={zone}
                   dropHover={drag?.source.kind === 'hand' && drag.overZone === zone}
                   onClick={() => handleDiscardPileClick(i as 0 | 1 | 2 | 3)}
                   onPointerDownCard={
-                    isYourTurn && pile.topCard
+                    canAct && pile.topCard
                       ? (e) => beginPress(e, { kind: 'discard', pileIndex: i as 0 | 1 | 2 | 3 }, pile.topCard!)
                       : undefined
                   }
@@ -386,11 +393,11 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
               <Card
                 key={c.id}
                 card={c}
-                interactive={isYourTurn}
+                interactive={canAct}
                 selected={selected?.kind === 'hand' && selected.cardId === c.id}
                 lifted={drag?.source.kind === 'hand' && drag.source.cardId === c.id}
                 onClick={() => handleHandCardClick(c.id)}
-                onPointerDown={isYourTurn ? (e) => beginPress(e, { kind: 'hand', cardId: c.id }, c) : undefined}
+                onPointerDown={canAct ? (e) => beginPress(e, { kind: 'hand', cardId: c.id }, c) : undefined}
               />
             ))}
           </div>
@@ -407,7 +414,8 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
         <FlightCard key={f.id} card={f.card} from={f.from} to={f.to} onDone={() => setFlights((fs) => fs.filter((x) => x.id !== f.id))} />
       ))}
 
-      {isYourTurn && selected?.kind === 'hand' && <p className="board__hint">{t('board.hint')}</p>}
+      {canAct && selected?.kind === 'hand' && <p className="board__hint">{t('board.hint')}</p>}
+      {isYourTurn && state.awaitingEndTurn && <p className="board__hint">{t('board.endTurnHint')}</p>}
 
       {showTurnBanner && <TurnBanner text={t('board.yourTurnBanner')} onDone={() => setShowTurnBanner(false)} />}
 

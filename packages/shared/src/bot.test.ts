@@ -36,6 +36,7 @@ function baseState(overrides: Partial<GameState> = {}): GameState {
     usedPile: [],
     winnerId: null,
     createdAt: 0,
+    awaitingEndTurn: false,
     ...overrides,
   };
 }

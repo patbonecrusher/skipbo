@@ -41,6 +41,9 @@ export interface GameState {
   usedPile: Card[]; // cleared (completed) build piles, reshuffled into drawPile when it empties
   winnerId: string | null;
   createdAt: number;
+  /** True once the current player has discarded but hasn't confirmed `endTurn` yet -- they can
+   * still `undo` the discard instead. No other action is legal for them until they do one or the other. */
+  awaitingEndTurn: boolean;
 }
 
 // ---- Actions a client can request ----
@@ -64,7 +67,12 @@ export interface DiscardCardAction {
   pileIndex: 0 | 1 | 2 | 3;
 }
 
-export type GameAction = PlayCardAction | DiscardCardAction;
+export interface EndTurnAction {
+  type: 'endTurn';
+  playerId: string;
+}
+
+export type GameAction = PlayCardAction | DiscardCardAction | EndTurnAction;
 
 /** Stable, machine-readable error identifiers -- clients localize these into user-facing text. */
 export type ErrorCode =
@@ -87,6 +95,8 @@ export type ErrorCode =
   | 'GAME_NOT_STARTED'
   | 'GAME_NOT_FINISHED'
   | 'NOTHING_TO_UNDO'
+  | 'AWAITING_END_TURN'
+  | 'NOTHING_TO_END'
   | 'UNKNOWN_ACTION'
   | 'SERVER_ERROR';
 
@@ -151,8 +161,10 @@ export interface ActiveGameState {
   buildPiles: [PileSummary, PileSummary, PileSummary, PileSummary];
   drawPileCount: number;
   winnerId: string | null;
-  /** True if you have a pending play (this turn) that `undo` can revert. */
+  /** True if you have a pending play or discard (this turn) that `undo` can revert. */
   canUndo: boolean;
+  /** True once the current player has discarded but hasn't confirmed `endTurn` yet. */
+  awaitingEndTurn: boolean;
 }
 
 export type RedactedGameState = LobbyGameState | ActiveGameState;

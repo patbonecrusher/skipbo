@@ -57,6 +57,7 @@ export function dealGame(gameId: string, players: NewPlayer[]): GameState {
     usedPile: [],
     winnerId: null,
     createdAt: Date.now(),
+    awaitingEndTurn: false,
   };
 }
 
@@ -107,6 +108,7 @@ export function applyPlay(state: GameState, action: PlayCardAction): EngineResul
   const playerIndex = getPlayerIndex(next, action.playerId);
   if (playerIndex === -1) return fail(state, 'UNKNOWN_PLAYER');
   if (playerIndex !== next.currentPlayerIndex) return fail(state, 'NOT_YOUR_TURN');
+  if (next.awaitingEndTurn) return fail(state, 'AWAITING_END_TURN');
 
   const player = next.players[playerIndex];
   const buildPileIndex = action.buildPileIndex;
@@ -163,6 +165,7 @@ export function applyDiscard(state: GameState, action: DiscardCardAction): Engin
   const playerIndex = getPlayerIndex(next, action.playerId);
   if (playerIndex === -1) return fail(state, 'UNKNOWN_PLAYER');
   if (playerIndex !== next.currentPlayerIndex) return fail(state, 'NOT_YOUR_TURN');
+  if (next.awaitingEndTurn) return fail(state, 'AWAITING_END_TURN');
   if (action.pileIndex < 0 || action.pileIndex > 3) return fail(state, 'INVALID_DISCARD_PILE');
 
   const player = next.players[playerIndex];
@@ -172,7 +175,25 @@ export function applyDiscard(state: GameState, action: DiscardCardAction): Engin
   const [card] = player.hand.splice(handIdx, 1);
   player.discardPiles[action.pileIndex].push(card);
 
-  // End turn: advance to the next player (wrapping around) and draw them up to a full hand.
+  // A discard doesn't end the turn by itself anymore -- it just marks the turn ready to end, so
+  // the player gets a chance to `undo` an accidental discard before confirming with `endTurn`.
+  next.awaitingEndTurn = true;
+
+  return { ok: true, state: next };
+}
+
+/** Confirms a pending discard and actually hands the turn to the next player (wrapping around),
+ * drawing them up to a full hand. Only legal once `applyDiscard` has set `awaitingEndTurn`. */
+export function applyEndTurn(state: GameState, playerId: string): EngineResult {
+  const next = cloneState(state);
+  if (next.status !== 'in-progress') return fail(state, 'GAME_NOT_IN_PROGRESS');
+
+  const playerIndex = getPlayerIndex(next, playerId);
+  if (playerIndex === -1) return fail(state, 'UNKNOWN_PLAYER');
+  if (playerIndex !== next.currentPlayerIndex) return fail(state, 'NOT_YOUR_TURN');
+  if (!next.awaitingEndTurn) return fail(state, 'NOTHING_TO_END');
+
+  next.awaitingEndTurn = false;
   const nextPlayerIndex = (playerIndex + 1) % next.players.length;
   next.currentPlayerIndex = nextPlayerIndex;
   drawUpToHandSize(next, next.players[nextPlayerIndex]);
@@ -190,6 +211,7 @@ export function skipTurn(state: GameState, playerId: string): EngineResult {
   if (playerIndex === -1) return fail(state, 'UNKNOWN_PLAYER');
   if (playerIndex !== next.currentPlayerIndex) return fail(state, 'NOT_YOUR_TURN');
 
+  next.awaitingEndTurn = false;
   const nextPlayerIndex = (playerIndex + 1) % next.players.length;
   next.currentPlayerIndex = nextPlayerIndex;
   drawUpToHandSize(next, next.players[nextPlayerIndex]);
@@ -242,5 +264,6 @@ export function redactForPlayer(state: GameState, forPlayerId: string): Redacted
     // The engine has no concept of undo history (that's server-side bookkeeping on GameRecord);
     // ws-handler's redactedForPlayer overrides this with the real value.
     canUndo: false,
+    awaitingEndTurn: state.awaitingEndTurn,
   };
 }

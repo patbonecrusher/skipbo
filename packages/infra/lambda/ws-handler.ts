@@ -1,6 +1,6 @@
 import { ApiGatewayManagementApiClient, PostToConnectionCommand, GoneException } from '@aws-sdk/client-apigatewaymanagementapi';
 import type { APIGatewayProxyResultV2, APIGatewayProxyWebsocketEventV2 } from 'aws-lambda';
-import { MAX_PLAYERS, MIN_PLAYERS, applyDiscard, applyPlay, chooseBotAction, dealGame, redactForPlayer, skipTurn } from '@skipbo/shared';
+import { MAX_PLAYERS, MIN_PLAYERS, applyDiscard, applyEndTurn, applyPlay, chooseBotAction, dealGame, redactForPlayer, skipTurn } from '@skipbo/shared';
 import type { ActiveGameState, ClientMessage, ErrorCode, GameState, NoticeCode, RedactedGameState, ServerMessage } from '@skipbo/shared';
 import {
   ConditionalCheckFailedException,
@@ -78,12 +78,21 @@ async function broadcastNotice(record: GameRecord, code: NoticeCode, params?: Re
  * a connected human's turn comes up or the game ends. Cascades across consecutive bots/skips. */
 async function advanceAutomaticTurns(gameId: string): Promise<void> {
   for (let step = 0; step < MAX_AUTO_STEPS; step++) {
-    let action: 'bot' | 'skip' | null = null;
+    let action: 'bot' | 'skip' | 'auto-end' | null = null;
     let skippedName = '';
     const record = await saveGameWithRetry(gameId, (rec) => {
       if (!rec.stateJson || rec.status !== 'in-progress') return rec;
       const state = parseState(rec);
       const activePlayer = state.players[state.currentPlayerIndex];
+
+      // A bot or now-disconnected player already discarded and just needs their turn confirmed --
+      // nobody is present to click "End Turn" for them, so finish it automatically.
+      if (state.awaitingEndTurn && (activePlayer.isBot || !activePlayer.connected)) {
+        const result = applyEndTurn(state, activePlayer.id);
+        if (!result.ok) return rec;
+        action = activePlayer.isBot ? 'bot' : 'auto-end';
+        return withState(rec, result.state);
+      }
 
       if (activePlayer.isBot) {
         const botAction = chooseBotAction(state, activePlayer.id);
@@ -101,6 +110,7 @@ async function advanceAutomaticTurns(gameId: string): Promise<void> {
         return withState(rec, result.state);
       }
 
+      // A connected human is up -- including one awaiting their own endTurn confirmation. Wait for them.
       return rec;
     });
     if (!action) return;
@@ -330,12 +340,40 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
             return rec;
           }
           const updated = withState(rec, result.state);
-          // A play doesn't end the turn, so it's safe to undo -- remember the state from just
-          // before it. A discard ends the turn, locking in everything that came before it.
-          if (message.action === 'playCard') {
-            return { ...updated, undoStateJson: rec.stateJson, undoPlayerId: conn.playerId };
+          // Neither a play nor a (not-yet-confirmed) discard locks the turn in, so both remain
+          // undoable -- remember the state from just before this action. withState() resets this
+          // by default; endTurn is what finally commits and lets it go back to null.
+          return { ...updated, undoStateJson: rec.stateJson, undoPlayerId: conn.playerId };
+        });
+        if (failure) {
+          await send(connectionId, { type: 'error', code: failure });
+        } else {
+          await broadcastState(record);
+          await advanceAutomaticTurns(record.gameId);
+        }
+        return { statusCode: 200 };
+      }
+
+      case 'endTurn': {
+        const conn = await getConnection(connectionId);
+        if (!conn) {
+          await send(connectionId, { type: 'error', code: 'NOT_CONNECTED' });
+          return { statusCode: 200 };
+        }
+        let failure: ErrorCode | null = null;
+        const record = await saveGameWithRetry(conn.gameId, (rec) => {
+          if (!rec.stateJson) {
+            failure = 'GAME_NOT_STARTED';
+            return rec;
           }
-          return updated;
+          const state = parseState(rec);
+          const result = applyEndTurn(state, conn.playerId);
+          if (!result.ok) {
+            failure = result.error ?? 'INVALID_MOVE';
+            return rec;
+          }
+          // Confirmed -- the discard is locked in now, so withState()'s default reset is correct.
+          return withState(rec, result.state);
         });
         if (failure) {
           await send(connectionId, { type: 'error', code: failure });
