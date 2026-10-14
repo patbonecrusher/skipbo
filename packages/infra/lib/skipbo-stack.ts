@@ -40,7 +40,7 @@ export class SkipboStack extends Stack {
 
     const wsHandler = new NodejsFunction(this, 'WsHandler', {
       entry: path.join(__dirname, '../lambda/ws-handler.ts'),
-      runtime: Runtime.NODEJS_20_X,
+      runtime: Runtime.NODEJS_22_X,
       memorySize: 256,
       // Bot turns are played out and broadcast one move at a time inside a single invocation
       // (see runBotTurns); 28s stays under API Gateway's WebSocket integration timeout ceiling.

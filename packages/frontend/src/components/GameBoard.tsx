@@ -66,6 +66,23 @@ function findOpponentMoveSource(prev: ActiveGameState, next: ActiveGameState, ca
   return null;
 }
 
+/** Finds where a card that just reappeared in your own hand came from -- used when `undo` returns
+ * a discarded or played card, so it flies back from wherever it actually was instead of looking
+ * like a fresh deal from the draw pile. Returns null when it really is a fresh deal. */
+function findSelfReturnSource(prev: ActiveGameState, next: ActiveGameState): string | null {
+  for (let i = 0; i < 4; i++) {
+    if (next.you.discardPiles[i].count === prev.you.discardPiles[i].count - 1) {
+      return `discard-${i}`;
+    }
+  }
+  for (let i = 0; i < 4; i++) {
+    if (next.buildPiles[i].count === prev.buildPiles[i].count - 1) {
+      return `build-${i}`;
+    }
+  }
+  return null;
+}
+
 export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps) {
   const { t } = useLanguage();
   const [selected, setSelected] = useState<Selection | null>(null);
@@ -153,8 +170,20 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
       const dealt = nextOpp.handCount - prevOpp.handCount;
       if (dealt > 0) dealCards(dealt, `opp-${prevOpp.id}-hand`);
     }
-    const selfDealt = state.you.hand.length - prev.you.hand.length;
-    if (selfDealt > 0) dealCards(selfDealt, 'self-hand');
+    const selfGained = state.you.hand.length - prev.you.hand.length;
+    if (selfGained === 1) {
+      // A single card reappearing could be an undo returning it from wherever it actually sits
+      // (a discard pile or a build pile), rather than a fresh deal from the draw pile.
+      const returnKey = findSelfReturnSource(prev, state);
+      const returnedCard = returnKey ? state.you.hand.find((c) => !prev.you.hand.some((pc) => pc.id === c.id)) : undefined;
+      if (returnKey && returnedCard) {
+        flyCard(returnedCard, returnKey, 'self-hand');
+      } else {
+        dealCards(selfGained, 'self-hand');
+      }
+    } else if (selfGained > 1) {
+      dealCards(selfGained, 'self-hand');
+    }
   }, [state]);
 
   const selectedCard =
@@ -289,13 +318,9 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
   return (
     <div className="board" ref={boardRef}>
       <header className="board__topbar">
-        <span className="board__room-code">{t('board.room', { code: state.gameId })}</span>
-        {gameOver ? (
-          <span className="board__status">{youWon ? t('board.youWon') : t('board.playerWon', { name: winnerName ?? '' })}</span>
-        ) : (
-          <span className="board__status">{isYourTurn ? t('board.yourTurn') : t('board.playerTurn', { name: activePlayerName ?? '…' })}</span>
-        )}
-        <div className="board__topbar-right">
+        {/* Controls come first in the layout (and so sit on the left) so they stay clear of an
+            iPad/iPhone's camera, which overlaps the top-right corner during FaceTime. */}
+        <div className="board__topbar-controls">
           {isYourTurn && state.canUndo && (
             <button type="button" className="board__undo" onClick={() => send({ action: 'undo' })}>
               {t('board.undo')}
@@ -311,6 +336,12 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
             {t('board.leave')}
           </button>
         </div>
+        <span className="board__room-code">{t('board.room', { code: state.gameId })}</span>
+        {gameOver ? (
+          <span className="board__status">{youWon ? t('board.youWon') : t('board.playerWon', { name: winnerName ?? '' })}</span>
+        ) : (
+          <span className="board__status">{isYourTurn ? t('board.yourTurn') : t('board.playerTurn', { name: activePlayerName ?? '…' })}</span>
+        )}
       </header>
 
       <section className="board__opponents">
@@ -372,6 +403,7 @@ export function GameBoard({ state, send, onLeave, onBackToHome }: GameBoardProps
                   lifted={drag?.source.kind === 'discard' && drag.source.pileIndex === i}
                   dropZone={zone}
                   dropHover={drag?.source.kind === 'hand' && drag.overZone === zone}
+                  animKey={zone}
                   onClick={() => handleDiscardPileClick(i as 0 | 1 | 2 | 3)}
                   onPointerDownCard={
                     canAct && pile.topCard

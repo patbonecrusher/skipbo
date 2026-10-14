@@ -261,7 +261,7 @@ button {
   padding: 6px 4px;
 }
 
-.board__topbar-right {
+.board__topbar-controls {
   display: flex;
   align-items: center;
   gap: 10px;
