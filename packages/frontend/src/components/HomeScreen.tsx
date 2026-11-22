@@ -7,9 +7,9 @@ interface HomeScreenProps {
   initialGameCode: string | null;
   status: SocketStatus;
   error: string | null;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, requireEndTurnConfirmation: boolean) => void;
   onJoin: (gameId: string, name: string) => void;
-  onPlaySolo: (name: string) => void;
+  onPlaySolo: (name: string, requireEndTurnConfirmation: boolean) => void;
 }
 
 export function HomeScreen({ initialGameCode, status, error, onCreate, onJoin, onPlaySolo }: HomeScreenProps) {
@@ -17,6 +17,7 @@ export function HomeScreen({ initialGameCode, status, error, onCreate, onJoin, o
   const [mode, setMode] = useState<'create' | 'join'>(initialGameCode ? 'join' : 'create');
   const [name, setName] = useState('');
   const [code, setCode] = useState(initialGameCode ?? '');
+  const [requireEndTurn, setRequireEndTurn] = useState(true);
 
   const ready = status === 'open';
 
@@ -24,7 +25,7 @@ export function HomeScreen({ initialGameCode, status, error, onCreate, onJoin, o
     e.preventDefault();
     if (!name.trim() || !ready) return;
     if (mode === 'create') {
-      onCreate(name.trim());
+      onCreate(name.trim(), requireEndTurn);
     } else {
       if (!code.trim()) return;
       onJoin(code.trim().toUpperCase(), name.trim());
@@ -73,6 +74,13 @@ export function HomeScreen({ initialGameCode, status, error, onCreate, onJoin, o
           </label>
         )}
 
+        {mode === 'create' && (
+          <label className="home__checkbox">
+            <input type="checkbox" checked={requireEndTurn} onChange={(e) => setRequireEndTurn(e.target.checked)} />
+            {t('home.requireEndTurnLabel')}
+          </label>
+        )}
+
         <button type="submit" className="home__submit" disabled={!ready || !name.trim() || (mode === 'join' && !code.trim())}>
           {mode === 'create' ? t('home.createButton') : t('home.joinButton')}
         </button>
@@ -82,7 +90,7 @@ export function HomeScreen({ initialGameCode, status, error, onCreate, onJoin, o
             type="button"
             className="home__solo"
             disabled={!ready || !name.trim()}
-            onClick={() => onPlaySolo(name.trim())}
+            onClick={() => onPlaySolo(name.trim(), requireEndTurn)}
           >
             {t('home.playSolo')}
           </button>

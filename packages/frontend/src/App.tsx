@@ -112,9 +112,9 @@ export default function App() {
   }, [status, send, phase.kind]);
 
   const handleCreate = useCallback(
-    (name: string) => {
+    (name: string, requireEndTurnConfirmation: boolean) => {
       pendingNameRef.current = name;
-      send({ action: 'createGame', playerName: name });
+      send({ action: 'createGame', playerName: name, requireEndTurnConfirmation });
     },
     [send],
   );
@@ -128,10 +128,10 @@ export default function App() {
   );
 
   const handlePlaySolo = useCallback(
-    (name: string) => {
+    (name: string, requireEndTurnConfirmation: boolean) => {
       pendingNameRef.current = name;
       pendingSoloRef.current = true;
-      send({ action: 'createGame', playerName: name });
+      send({ action: 'createGame', playerName: name, requireEndTurnConfirmation });
     },
     [send],
   );

@@ -5,6 +5,9 @@ import type { ErrorCode, PlaySource, RedactedGameState } from './types.js';
 export interface CreateGameMessage {
   action: 'createGame';
   playerName: string;
+  /** If false, discarding a card immediately ends the turn (the old, simpler behavior) instead of
+   * requiring an explicit `endTurn` to confirm it. */
+  requireEndTurnConfirmation: boolean;
 }
 
 export interface JoinGameMessage {

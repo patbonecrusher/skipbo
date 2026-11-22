@@ -42,8 +42,11 @@ export interface GameState {
   winnerId: string | null;
   createdAt: number;
   /** True once the current player has discarded but hasn't confirmed `endTurn` yet -- they can
-   * still `undo` the discard instead. No other action is legal for them until they do one or the other. */
+   * still `undo` the discard instead. No other action is legal for them until they do one or the other.
+   * Always stays false when `requireEndTurnConfirmation` is off, since a discard ends the turn immediately. */
   awaitingEndTurn: boolean;
+  /** Chosen when the game was created. If false, discarding a card ends the turn immediately. */
+  requireEndTurnConfirmation: boolean;
 }
 
 // ---- Actions a client can request ----

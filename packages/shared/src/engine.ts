@@ -21,7 +21,7 @@ export interface NewPlayer {
   isBot?: boolean;
 }
 
-export function dealGame(gameId: string, players: NewPlayer[]): GameState {
+export function dealGame(gameId: string, players: NewPlayer[], requireEndTurnConfirmation: boolean): GameState {
   if (players.length < 2) throw new Error('At least 2 players are required');
   const stockSize = stockPileSizeForPlayerCount(players.length);
   const deck = shuffle(createFullDeck());
@@ -58,6 +58,7 @@ export function dealGame(gameId: string, players: NewPlayer[]): GameState {
     winnerId: null,
     createdAt: Date.now(),
     awaitingEndTurn: false,
+    requireEndTurnConfirmation,
   };
 }
 
@@ -175,9 +176,16 @@ export function applyDiscard(state: GameState, action: DiscardCardAction): Engin
   const [card] = player.hand.splice(handIdx, 1);
   player.discardPiles[action.pileIndex].push(card);
 
-  // A discard doesn't end the turn by itself anymore -- it just marks the turn ready to end, so
-  // the player gets a chance to `undo` an accidental discard before confirming with `endTurn`.
-  next.awaitingEndTurn = true;
+  if (next.requireEndTurnConfirmation) {
+    // The discard doesn't end the turn by itself -- it just marks the turn ready to end, so
+    // the player gets a chance to `undo` an accidental discard before confirming with `endTurn`.
+    next.awaitingEndTurn = true;
+  } else {
+    // Auto-end-turn mode: a discard ends the turn immediately, same as `applyEndTurn` would.
+    const nextPlayerIndex = (playerIndex + 1) % next.players.length;
+    next.currentPlayerIndex = nextPlayerIndex;
+    drawUpToHandSize(next, next.players[nextPlayerIndex]);
+  }
 
   return { ok: true, state: next };
 }

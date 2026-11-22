@@ -188,7 +188,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
     switch (message.action) {
       case 'createGame': {
         const playerId = newPlayerId();
-        const record = await createPendingGame(playerId, message.playerName.slice(0, 40));
+        const record = await createPendingGame(playerId, message.playerName.slice(0, 40), message.requireEndTurnConfirmation);
         record.players[0].connectionId = connectionId;
         await saveGame(record);
         await putConnection({ connectionId, gameId: record.gameId, playerId });
@@ -305,6 +305,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           const freshState = dealGame(
             rec.gameId,
             rec.players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
+            rec.requireEndTurnConfirmation,
           );
           return withState(rec, freshState);
         });
@@ -426,6 +427,7 @@ async function handleMessage(connectionId: string, body: string): Promise<APIGat
           const freshState = dealGame(
             rec.gameId,
             rec.players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
+            rec.requireEndTurnConfirmation,
           );
           return withState(rec, freshState);
         });

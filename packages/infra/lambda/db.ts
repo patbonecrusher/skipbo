@@ -28,6 +28,8 @@ export interface GameRecord {
   version: number;
   createdAt: number;
   expiresAt: number;
+  /** Chosen at creation time; threaded into the GameState once dealGame() runs. */
+  requireEndTurnConfirmation: boolean;
   /** Snapshot of stateJson from just before undoPlayerId's last play, or null if there's nothing to undo. */
   undoStateJson: string | null;
   undoPlayerId: string | null;
@@ -47,7 +49,7 @@ export function newPlayerId(): string {
   return crypto.randomUUID();
 }
 
-export async function createPendingGame(hostId: string, hostName: string): Promise<GameRecord> {
+export async function createPendingGame(hostId: string, hostName: string, requireEndTurnConfirmation: boolean): Promise<GameRecord> {
   const now = Date.now();
   for (let attempt = 0; attempt < 5; attempt++) {
     const gameId = randomGameCode();
@@ -62,6 +64,7 @@ export async function createPendingGame(hostId: string, hostName: string): Promi
       expiresAt: Math.floor(now / 1000) + GAME_TTL_SECONDS,
       undoStateJson: null,
       undoPlayerId: null,
+      requireEndTurnConfirmation,
     };
     try {
       await client.send(

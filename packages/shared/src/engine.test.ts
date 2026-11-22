@@ -37,13 +37,14 @@ function baseState(overrides: Partial<GameState> = {}): GameState {
     winnerId: null,
     createdAt: 0,
     awaitingEndTurn: false,
+    requireEndTurnConfirmation: true,
     ...overrides,
   };
 }
 
 describe('dealGame', () => {
   it('deals 30-card stock piles for 2 players', () => {
-    const state = dealGame('g1', [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }]);
+    const state = dealGame('g1', [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }], true);
     expect(state.players).toHaveLength(2);
     state.players.forEach((p) => expect(p.stockPile).toHaveLength(30));
     state.players.forEach((p) => expect(p.hand).toHaveLength(5));
@@ -51,15 +52,19 @@ describe('dealGame', () => {
   });
 
   it('deals 20-card stock piles for 3-4 players', () => {
-    const three = dealGame('g1', [{ id: 'p1', name: 'A' }, { id: 'p2', name: 'B' }, { id: 'p3', name: 'C' }]);
+    const three = dealGame('g1', [{ id: 'p1', name: 'A' }, { id: 'p2', name: 'B' }, { id: 'p3', name: 'C' }], true);
     three.players.forEach((p) => expect(p.stockPile).toHaveLength(20));
 
-    const four = dealGame('g2', [
-      { id: 'p1', name: 'A' },
-      { id: 'p2', name: 'B' },
-      { id: 'p3', name: 'C' },
-      { id: 'p4', name: 'D' },
-    ]);
+    const four = dealGame(
+      'g2',
+      [
+        { id: 'p1', name: 'A' },
+        { id: 'p2', name: 'B' },
+        { id: 'p3', name: 'C' },
+        { id: 'p4', name: 'D' },
+      ],
+      true,
+    );
     four.players.forEach((p) => expect(p.stockPile).toHaveLength(20));
   });
 
@@ -67,6 +72,7 @@ describe('dealGame', () => {
     const six = dealGame(
       'g1',
       Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, name: `Player ${i}` })),
+      true,
     );
     expect(six.players).toHaveLength(6);
     six.players.forEach((p) => expect(p.stockPile).toHaveLength(15));
@@ -76,6 +82,7 @@ describe('dealGame', () => {
     const state = dealGame(
       'g1',
       Array.from({ length: 5 }, (_, i) => ({ id: `p${i}`, name: `Player ${i}` })),
+      true,
     );
     const allIds = new Set<string>();
     const allCards = [
@@ -88,7 +95,12 @@ describe('dealGame', () => {
   });
 
   it('rejects fewer than 2 players', () => {
-    expect(() => dealGame('g1', [{ id: 'p1', name: 'Solo' }])).toThrow();
+    expect(() => dealGame('g1', [{ id: 'p1', name: 'Solo' }], true)).toThrow();
+  });
+
+  it('carries the requireEndTurnConfirmation setting onto the dealt state', () => {
+    const state = dealGame('g1', [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }], false);
+    expect(state.requireEndTurnConfirmation).toBe(false);
   });
 });
 
@@ -209,6 +221,19 @@ describe('applyDiscard', () => {
     const result = applyDiscard(state, { type: 'discard', playerId: 'p1', cardId: 'h1', pileIndex: 0 });
     expect(result.ok).toBe(false);
     expect(result.error).toBe('AWAITING_END_TURN');
+  });
+
+  it('ends the turn immediately when requireEndTurnConfirmation is off', () => {
+    const state = baseState({
+      requireEndTurnConfirmation: false,
+      drawPile: [card('d1', 1), card('d2', 1), card('d3', 1), card('d4', 1)],
+    });
+    state.players[1].hand = [card('h2', 2)];
+    const result = applyDiscard(state, { type: 'discard', playerId: 'p1', cardId: 'h1', pileIndex: 0 });
+    expect(result.ok).toBe(true);
+    expect(result.state.awaitingEndTurn).toBe(false);
+    expect(result.state.currentPlayerIndex).toBe(1);
+    expect(result.state.players[1].hand).toHaveLength(5);
   });
 });
 

@@ -14,6 +14,7 @@ export const translations = {
     'home.joinButton': 'Join game',
     'home.connecting': 'Connecting…',
     'home.playSolo': 'Play solo vs. computer',
+    'home.requireEndTurnLabel': 'Require End Turn confirmation after discarding',
 
     'lobby.shareText': 'Share this with the other players:',
     'lobby.copyLink': 'Copy invite link',
@@ -90,6 +91,7 @@ export const translations = {
     'home.joinButton': 'Rejoindre la partie',
     'home.connecting': 'Connexion en cours…',
     'home.playSolo': "Jouer seul contre l'ordinateur",
+    'home.requireEndTurnLabel': 'Exiger la confirmation « Terminer le tour » après une défausse',
 
     'lobby.shareText': 'Partagez ceci avec les autres joueurs :',
     'lobby.copyLink': "Copier le lien d'invitation",

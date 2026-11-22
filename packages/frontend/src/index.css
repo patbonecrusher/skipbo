@@ -589,6 +589,19 @@ button {
   text-align: center;
 }
 
+.home__checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-align: left;
+}
+
+.home__checkbox input {
+  margin-top: 3px;
+}
+
 .home__submit {
   background: var(--accent);
   border: none;
